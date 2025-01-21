@@ -4,6 +4,7 @@ from typing import Tuple
 
 import networkx as nx
 
+from utils.metrics import calc_depth, calc_recall, calc_size
 from algos.bfs import BFS
 from algos.push_pop import PushPopModel
 from dataset.dynamic import DynamicTransNetwork
@@ -36,7 +37,10 @@ def eval_case(
     witness_graph = graph.subgraph(list(vis))
 
     # TODO: calc metrics on the witness graph and return
-    depth, recall, num_nodes = 0, 0, 0
+    depth = 0
+    # depth = calc_depth(g, source)
+    recall = calc_recall(graph, list(vis))
+    num_nodes = calc_size(graph)
     return (depth, recall, num_nodes, time_used)
 
 
