@@ -25,10 +25,11 @@ class PushPopModel:
     def execute(self, graph: nx.MultiDiGraph) -> nx.MultiDiGraph:
         # init on the source
         edges = list()
-        for edge_view in [graph.in_edges(self.source), graph.out_edges(self.source)]:
-            for u, v, attrs in edge_view:
-                edges.append({'from': u, 'to': v, **attrs})
-        _ = [item for item in self.push(self.source, edges)]
+        for src in self.source:
+            for edge_view in [graph.in_edges(src), graph.out_edges(src)]:
+                for u, v, attrs in edge_view:
+                    edges.append({'from': u, 'to': v, **attrs})
+            _ = [item for item in self.push(self.src, edges)]
 
         # expanding
         node = self.pop()
