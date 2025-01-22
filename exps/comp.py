@@ -8,7 +8,7 @@ from utils.metrics import calc_depth, calc_recall, calc_size
 from algos.bfs import BFS
 from algos.push_pop import PushPopModel
 from dataset.dynamic import DynamicTransNetwork
-
+import re
 
 def eval_case(
         dataset: DynamicTransNetwork,
@@ -17,10 +17,14 @@ def eval_case(
 ) -> Tuple:
     # init the source
     vis = set()
+    targets = set()
+    pattern = r"ml_transit_[1-9]"
     addr2label = dataset.get_case_labels(case_name)
     for addr, label in addr2label.items():
         if label == 'ml_transit_0':
             vis.add(addr)
+        if re.match(pattern, label):
+            targets.add(addr)
     method.source = vis  # TODO: update multi-source version
 
     # build the snapshot network from arrived edges
@@ -37,10 +41,9 @@ def eval_case(
     witness_graph = graph.subgraph(list(vis))
 
     # TODO: calc metrics on the witness graph and return
-    depth = 0
-    # depth = calc_depth(g, source)
-    recall = calc_recall(graph, list(vis))
-    num_nodes = calc_size(graph)
+    depth = calc_depth(witness_graph, vis)
+    recall = calc_recall(witness_graph, list(targets))
+    num_nodes = calc_size(witness_graph)
     return (depth, recall, num_nodes, time_used)
 
 
