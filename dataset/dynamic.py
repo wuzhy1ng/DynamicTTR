@@ -1,5 +1,5 @@
 import os
-from typing import List, Iterator, Dict
+from typing import List, Iterator, Dict, Tuple
 
 import pandas as pd
 
@@ -17,7 +17,7 @@ class DynamicTransNetwork:
             case_names.append(name)
         return case_names
 
-    def iter_edge_arrive(self, case_name: str) -> Iterator[str, str, Dict]:
+    def iter_edge_arrive(self, case_name: str) -> Iterator[Tuple[str, str, Dict]]:
         path = os.path.join(self.raw_path, case_name, 'all-tx.csv')
         data = pd.read_csv(path)
         data.sort_values(by=['timeStamp'], inplace=True)
