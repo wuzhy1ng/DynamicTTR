@@ -24,21 +24,23 @@ class PushPopModel:
 
     def execute(self, graph: nx.MultiDiGraph) -> nx.MultiDiGraph:
         # init on the source
-        edges = list()
-        for edge_view in [graph.in_edges(self.source), graph.out_edges(self.source)]:
-            for u, v, attrs in edge_view:
-                edges.append({'from': u, 'to': v, **attrs})
-        _ = [item for item in self.push(self.source, edges)]
+        vis = self.source
+        for s in self.source:
+            edges = list()
+            for edge_view in [graph.in_edges(s, data=True), graph.out_edges(s, data=True)]:
+                for u, v, attrs in edge_view:
+                    edges.append({'from': u, 'to': v, **attrs})
+            _ = [self.push(s, edges)]
 
         # expanding
         node = self.pop()
-        vis = {node}
         while node is not None:
-            edges = list()
-            for edge_view in [graph.in_edges(node), graph.out_edges(node)]:
-                for u, v, attrs in edge_view:
-                    edges.append({'from': u, 'to': v, **attrs})
-            _ = [item for item in self.push(node, edges)]
-            node = node.pop()
-            vis.add(node)
+            if node['node'] not in vis:
+                edges = list()
+                for edge_view in [graph.in_edges(node), graph.out_edges(node)]:
+                    for u, v, attrs in edge_view:
+                        edges.append({'from': u, 'to': v, **attrs})
+                _ = [self.push(node['node'], edges)]
+                vis.add(node['node'])
+            node = self.pop()
         return graph.subgraph(list(vis))
