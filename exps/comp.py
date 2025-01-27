@@ -8,6 +8,7 @@ from algos.bfs import BFS
 from algos.push_pop import PushPopModel
 from dataset.dynamic import DynamicTransNetwork
 
+from utils.metrics import GraphMetrics
 
 def eval_case(
         dataset: DynamicTransNetwork,
@@ -36,24 +37,28 @@ def eval_case(
     witness_graph = graph.subgraph(list(vis))
 
     # TODO: calc metrics on the witness graph and return
-    depth, recall, num_nodes = 0, 0, 0
+    metrics_calculator = GraphMetrics(dataset, case_name)
+    depth, recall, num_nodes = metrics_calculator.calc_metrics(witness_graph)
     return (depth, recall, num_nodes, time_used)
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--raw_path', type=str, required=True)
-    args = parser.parse_args()
+    # parser = argparse.ArgumentParser()
+    # parser.add_argument('--raw_path', type=str, required=True)
+    # args = parser.parse_args()
 
-    dataset = DynamicTransNetwork(raw_path=args.raw_path)
+    raw_path = 'D:/DynamicTTR-master/EthereumHeist_open'
+
+    dataset = DynamicTransNetwork(raw_path=raw_path)
     list_depth, list_recalls, list_num_nodes, list_time_used = [
         list() for _ in range(4)
     ]
     for name in dataset.get_case_names():
+        source = set()
         depth, recall, num_nodes, time_used = eval_case(
             dataset=dataset,
             case_name=name,
-            method=BFS(None)
+            method=BFS(source)
         )
         list_depth.append(depth)
         list_recalls.append(recall)
