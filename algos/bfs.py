@@ -7,10 +7,10 @@ class BFS(PushPopModel):
     def __init__(self, source, depth: int = 2):
         super().__init__(source)
         self.depth = depth
-        self._vis = {self.source}
+        self._vis = self.source
         self._queue = Queue()
 
-    def push(self, node, edges: list, cur_depth: int = -1):
+    def push(self, node, edges: list, cur_depth: int = 0):
         """
         push a node with related edges, and the edges requires `from` and `to`
         :param node:

@@ -11,7 +11,7 @@ class APPR(PushPopModel):
         assert 0 < epsilon < 1
         self.epsilon = epsilon
 
-        self.r = {self.source: 1}
+        self.r ={node: 1 for node in self.source}
         self.p = dict()
 
         self._vis = set()
