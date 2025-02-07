@@ -4,6 +4,10 @@ from typing import Tuple
 
 import networkx as nx
 
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.abspath(__file__)).rsplit('/', 1)[0])
+
 from utils.metrics import calc_depth, calc_recall, calc_size
 from algos.bfs import BFS
 from algos.push_pop import PushPopModel
@@ -18,14 +22,14 @@ def eval_case(
     # init the source
     vis = set()
     targets = set()
-    pattern = r"ml_transit_[1-9]"
+    pattern = r"ml_transit_[0-9]"
     addr2label = dataset.get_case_labels(case_name)
     for addr, label in addr2label.items():
         if label == 'ml_transit_0':
             vis.add(addr)
-        if re.match(pattern, label):
-            targets.add(addr)
-    method.source = vis  # TODO: update multi-source version
+        if re.match(pattern, str(label)):
+            targets.add(addr) ######## sir this way
+    method = BFS(vis)
 
     # build the snapshot network from arrived edges
     graph = nx.MultiDiGraph()
@@ -40,7 +44,6 @@ def eval_case(
         time_used += (time.time() - s_time)
     witness_graph = graph.subgraph(list(vis))
 
-    # TODO: calc metrics on the witness graph and return
     depth = calc_depth(witness_graph, vis)
     recall = calc_recall(witness_graph, list(targets))
     num_nodes = calc_size(witness_graph)
