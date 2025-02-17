@@ -17,10 +17,18 @@ class DTTR:
 
         self.r = dict()
         self.p = {s: 1.0 for s in source}
+        self.source = source
 
-        self._node2outsum = dict()
+        self._node2outsum = {
+            s: self.epsilon
+            for s in self.source
+        }
         self._witness_graph = nx.DiGraph()
         self._witness_graph.add_nodes_from(source)
+        self._witness_graph.add_edges_from([
+            (s, s, {'value': self.epsilon})
+            for s in self.source
+        ])
 
     def edge_arrive(self, u: Any, v: Any, attrs: Dict):
         """
@@ -34,49 +42,55 @@ class DTTR:
         # filter out the edge
         # if there is no mass from u
         # see the invariant for details
-        if not self._has_mass(u):
+        if self.p.get(u, 0) == 0:
             return
 
-            # init args
-        d_out_old = self._node2outsum.get(u, 0)
+        # add restart edges
+        if len(self._witness_graph.out_edges(v)) == 0:
+            self._witness_graph.add_edges_from([
+                (v, s, {'value': self.epsilon})
+                for s in self.source
+            ])
+            self._node2outsum[v] = self.epsilon * len(self.source)
+
+        # init args
+        d_out_old = self._node2outsum[u]
         d_out_new = d_out_old + attrs.get('value', 0)
+        self._node2outsum[u] = d_out_new
         nodes_push = set()
 
-        # update the residual for out-degree neighbors
-        for _, k, _attrs in self._witness_graph.out_edges(u, data=True):
-            delta = _attrs.get('value', 0) * self.p.get(u, 0) / self.alpha
-            delta *= (1 / d_out_new - 1 / d_out_old)
-            self.r[k] = self.r.get(k, 0) + delta
-            if self.r[k] >= self.epsilon:
-                nodes_push.add(k)
+        # update node u
+        pu_old = self.p[u]
+        self.p[u] *= (d_out_new / d_out_old) if d_out_old > 0 else 1
+        delta_ru = - (1 / self.alpha) * pu_old
+        delta_ru *= (attrs.get('value', 0) / d_out_old) if d_out_old > 0 else 1
+        self.r[u] = self.r.get(u, 0) + delta_ru
+        if abs(self.r[u]) >= self.epsilon:
+            nodes_push.add(u)
 
-        # update the residual for node v
-        value_old = self._witness_graph.get_edge_data(u, v)
-        value_old = value_old.get('value', 0) if value_old else 0
-        value_new = value_old + attrs.get('value', 0)
-        delta = self.p.get(u, 0) / self.alpha
-        delta *= ((value_new / d_out_new - value_old / d_out_old)
-                  if value_old > 0 else (value_new / d_out_new))
-        self.r[v] = self.r.get(v, 0) + delta
-        if self.r[v] >= self.epsilon:
+        # update node v
+        self.r[v] = self.r.get(v, 0) - delta_ru * (1 - self.alpha)
+        if abs(self.r[v]) >= self.epsilon:
             nodes_push.add(v)
 
-        # run a local push
+        # record the new edge and run a local push
+        edge_data = self._witness_graph.get_edge_data(u, v)
+        if edge_data is None:
+            self._witness_graph.add_edge(u, v, value=attrs.get('value', 0))
+        else:
+            edge_data['value'] += attrs.get('value', 0)
         self._local_push(nodes_push)
-
-    def _has_mass(self, u: Any) -> bool:
-        return self.p.get(u, 0) > 0
 
     def _local_push(self, nodes_push: Set[Any]):
         while len(nodes_push) > 0:
             node = nodes_push.pop()
             residual, self.r[node] = self.r[node], 0
+            self.p[node] = self.p.get(node, 0) + residual * self.alpha
             outsum = self._node2outsum[node]
-            self.p[node] = residual * self.alpha
             for _, neighbor, _attrs in self._witness_graph.out_edges(node, data=True):
                 fac = _attrs.get('value', 0) / outsum
                 self.r[neighbor] += residual * (1 - self.alpha) * fac
-                if self.r[neighbor] >= self.epsilon:
+                if abs(self.r[neighbor]) >= self.epsilon:
                     nodes_push.add(neighbor)
 
 
