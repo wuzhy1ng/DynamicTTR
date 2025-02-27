@@ -24,8 +24,8 @@ class DynamicTransNetwork:
         for _, row in data.iterrows():
             row_data = row.to_dict()
             yield row_data['from'], row_data['to'], {
-                'value': row_data['value'],
-                'timeStamp': row_data['timeStamp'],
+                'value': float(row_data['value']),
+                'timeStamp': int(row_data['timeStamp']),
                 'symbol': row_data['tokenSymbol'],
             }
 

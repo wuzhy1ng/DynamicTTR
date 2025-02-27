@@ -1,6 +1,7 @@
 from typing import List, Dict, Any, Set
 
 import networkx as nx
+from networkx.classes import neighbors
 
 
 class DTTR:
@@ -83,13 +84,15 @@ class DTTR:
 
     def _local_push(self, nodes_push: Set[Any]):
         while len(nodes_push) > 0:
-            node = nodes_push.pop()
-            residual, self.r[node] = self.r[node], 0
+            node_residual = [(node, self.r[node]) for node in nodes_push]
+            node, residual = max(node_residual, key=lambda x: abs(x[1]))
+            nodes_push.remove(node)
+            self.r[node] = 0
             self.p[node] = self.p.get(node, 0) + residual * self.alpha
             outsum = self._node2outsum[node]
             for _, neighbor, _attrs in self._witness_graph.out_edges(node, data=True):
                 fac = _attrs.get('value', 0) / outsum
-                self.r[neighbor] += residual * (1 - self.alpha) * fac
+                self.r[neighbor] = self.r.get(neighbor, 0) + residual * (1 - self.alpha) * fac
                 if abs(self.r[neighbor]) >= self.epsilon:
                     nodes_push.add(neighbor)
 
