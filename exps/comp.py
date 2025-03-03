@@ -8,16 +8,17 @@ from typing import Tuple, Any, Callable
 import networkx as nx
 from tqdm import tqdm
 
+from algos.bfs import BFS
 from algos.appr import APPR
 from algos.dttr import DTTR
 from algos.haricut import Haircut
 from algos.poison import Poison
-from algos.ttr import TTR
+from algos.push_pop import PushPopAggregator
+from algos.ttr import TTRRedirect
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)).rsplit('/', 1)[0])
 
 from utils.metrics import calc_depth, calc_recall, calc_size
-from algos.bfs import BFS
 from dataset.dynamic import DynamicTransNetwork
 import re
 
@@ -25,43 +26,47 @@ import re
 def eval_case_from_pushpop(
         dataset: DynamicTransNetwork,
         case_name: str,
-        method_cls: Any,
+        model_cls: Any,
 ) -> Tuple:
     """
     Perform the evaluation with the `PushPopModel`.
 
     :param dataset: the dynamic network
     :param case_name: the tracing case name
-    :param method_cls: the class of the PushPopModel method
+    :param model_cls: the class of the PushPopModel method
     :return: the collected evaluating metrics
     """
 
     # init the source
-    vis = set()
+    sources = set()
     targets = set()
-    pattern = r"ml_transit_[0-9]"
+    pattern = r"ml_transit_.*?"
     addr2label = dataset.get_case_labels(case_name)
     for addr, label in addr2label.items():
         if label == 'ml_transit_0':
-            vis.add(addr)
+            sources.add(addr)
         if re.match(pattern, str(label)):
-            targets.add(addr)  ######## sir this way
+            targets.add(addr)
 
     # build the snapshot network from arrived edges
     graph = nx.MultiDiGraph()
     time_used = 0
     for u, v, attr in tqdm(
-        iterable=dataset.iter_edge_arrive(case_name),
-        desc=case_name,
+            iterable=dataset.iter_edge_arrive(case_name),
+            desc=case_name,
     ):
+        attr['value'] = float(attr['value'])
         graph.add_edge(u, v, **attr)
-        if u not in vis and v not in vis:
-            continue
-        s_time = time.time()
-        instance = method_cls(vis)
-        witness_graph = instance.execute(graph)
-        vis = set([n for n in witness_graph.nodes()])
-        time_used += (time.time() - s_time)
+        # if u not in vis and v not in vis:
+        #     continue
+    s_time = time.time()
+    aggregator = PushPopAggregator(
+        source_list=list(sources),
+        model_cls=model_cls,
+    )
+    witness_graph = aggregator.execute(graph)
+    vis = set([n for n in witness_graph.nodes()])
+    time_used += (time.time() - s_time)
     witness_graph = graph.subgraph(list(vis))
 
     # collect the metrics and return the result
@@ -74,20 +79,20 @@ def eval_case_from_pushpop(
 def eval_case_from_edge_arrive(
         dataset: DynamicTransNetwork,
         case_name: str,
-        method_cls: Any = DTTR,
+        model_cls: Any = DTTR,
 ) -> Tuple:
     """
     Perform the evaluation with the edge arrived method.
 
     :param dataset: the dynamic network
     :param case_name: the tracing case name
-    :param method_cls: the class of the edge arrived method
+    :param model_cls: the class of the edge arrived method
     :return: the collected evaluating metrics
     """
     # init the source
     vis = set()
     targets = set()
-    pattern = r"ml_transit_[0-9]"
+    pattern = r"ml_transit_.*?"
     addr2label = dataset.get_case_labels(case_name)
     for addr, label in addr2label.items():
         if label == 'ml_transit_0':
@@ -97,11 +102,11 @@ def eval_case_from_edge_arrive(
 
     # build the snapshot network from arrived edges
     time_used = 0
-    model = method_cls(source=list(vis))
+    model = model_cls(source=list(vis))
     graph = nx.MultiDiGraph()
     for u, v, attr in tqdm(
-        iterable=dataset.iter_edge_arrive(case_name),
-        desc=case_name,
+            iterable=dataset.iter_edge_arrive(case_name),
+            desc=case_name,
     ):
         graph.add_edge(u, v, **attr)
         s_time = time.time()
@@ -118,7 +123,7 @@ def eval_case_from_edge_arrive(
 
 def eval_method(
         dataset: DynamicTransNetwork,
-        method_cls: Any,
+        model_cls: Any,
         eval_fn: Callable,
 ):
     """
@@ -126,11 +131,11 @@ def eval_method(
     using the function `eval_fn`.
 
     :param dataset: the dynamic network
-    :param method_cls: the method class to be evaluated
+    :param model_cls: the method class to be evaluated
     :param eval_fn: the case evaluation function
     :return:
     """
-    print('======= Evaluating: {} ======='.format(method_cls))
+    print('======= Evaluating: {} ======='.format(model_cls))
     list_depth, list_recalls, list_num_nodes, list_time_used = [
         list() for _ in range(4)
     ]
@@ -139,17 +144,17 @@ def eval_method(
         depth, recall, num_nodes, time_used = eval_fn(
             dataset=dataset,
             case_name=name,
-            method_cls=method_cls,
+            model_cls=model_cls,
         )
         list_depth.append(depth)
         list_recalls.append(recall)
         list_num_nodes.append(num_nodes)
         list_time_used.append(time_used)
 
-    print('Depth:', list_depth)
-    print('Recall:', list_recalls)
-    print('Num Nodes:', list_num_nodes)
-    print('Time:', list_time_used)
+    print('Depth: {} (mean)'.format(sum(list_depth) / len(list_depth)), list_depth)
+    print('Recall: {} (mean)'.format(sum(list_recalls) / len(list_recalls)), list_recalls)
+    print('Num Nodes: {} (mean)'.format(sum(list_num_nodes) / len(list_num_nodes)), list_num_nodes)
+    print('Used Time: {} (mean)'.format(sum(list_time_used) / len(list_time_used)), list_time_used)
 
 
 if __name__ == '__main__':
@@ -160,15 +165,15 @@ if __name__ == '__main__':
     dataset = DynamicTransNetwork(raw_path=args.raw_path)
     eval_method(
         dataset=dataset,
-        method_cls=DTTR,
+        model_cls=DTTR,
         eval_fn=eval_case_from_edge_arrive,
     )
-    for method_cls in [
+    for model_cls in [
         BFS, Poison, Haircut,
-        APPR, TTR
+        TTRRedirect
     ]:
         eval_method(
             dataset=dataset,
-            method_cls=method_cls,
+            model_cls=model_cls,
             eval_fn=eval_case_from_pushpop
         )

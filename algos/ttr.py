@@ -333,8 +333,6 @@ class TTRRedirect(TTR):
         self._vis = set()
 
     def push(self, node, edges: list, **kwargs):
-        start = time.time()
-
         # if residual vector is none, add empty list
         if self.r.get(node) is None:
             self.r[node] = list()
@@ -423,7 +421,6 @@ class TTRRedirect(TTR):
         # yield edges
         if node not in self._vis:
             self._vis.add(node)
-            yield from edges
 
     def _self_push(self, node, r: list):
         sum_r = 0

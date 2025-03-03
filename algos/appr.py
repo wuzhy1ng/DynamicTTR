@@ -1,4 +1,5 @@
 from algos.push_pop import PushPopModel
+from utils.cache import LRUCache
 
 
 class APPR(PushPopModel):
@@ -11,10 +12,10 @@ class APPR(PushPopModel):
         assert 0 < epsilon < 1
         self.epsilon = epsilon
 
-        self.r ={node: 1 for node in self.source}
+        self.r = {self.source: 1}
         self.p = dict()
 
-        self._vis = set()
+        self._cache = LRUCache()
 
     def push(self, node, edges: list, **kwargs):
         r_node = self.r.get(node, 0)
@@ -35,16 +36,11 @@ class APPR(PushPopModel):
         for neighbour in neighbours:
             self.r[neighbour] = self.r.get(neighbour, 0) + inc
 
-        # yield edges
-        if node not in self._vis:
-            self._vis.add(node)
-            yield from edges
-
     def pop(self):
         while True:
             node, r_node = None, None
             for _node, _r_node in self.r.items():
-                if _r_node <= self.epsilon or not self.cache.get(_node):
+                if _r_node <= self.epsilon or not self._cache.get(_node):
                     continue
                 node, r_node = _node, _r_node
                 break
@@ -53,7 +49,7 @@ class APPR(PushPopModel):
                 break
             self.r[node] = 0
             self.p[node] = self.p.get(node, 0) + r_node * self.alpha
-            for v, d in self.cache.get(node).items():
+            for v, d in self._cache.get(node).items():
                 self.r[v] = self.r.get(v, 0) + d * r_node
 
         node, r = None, self.epsilon

@@ -1,3 +1,4 @@
+import csv
 import os
 from typing import List, Iterator, Dict
 
@@ -19,14 +20,19 @@ class DynamicTransNetwork:
 
     def iter_edge_arrive(self, case_name: str) -> Iterator[tuple[str, str, Dict]]:
         path = os.path.join(self.raw_path, case_name, 'all-tx.csv')
-        data = pd.read_csv(path)
-        data.sort_values(by=['timeStamp'], inplace=True)
-        for _, row in data.iterrows():
-            row_data = row.to_dict()
+        data = list()
+        with open(path, 'r', encoding='utf-8') as f:
+            for row in csv.DictReader(f):
+                data.append(row)
+        data.sort(key=lambda x: int(x['timeStamp']))
+        for row_data in data:
+            contract_address = row_data['contractAddress'] \
+                if row_data['contractAddress'] != '' \
+                else '0x' + '0' * 40
             yield row_data['from'], row_data['to'], {
-                'value': float(row_data['value']),
+                'value': row_data['value'],
                 'timeStamp': int(row_data['timeStamp']),
-                'symbol': row_data['tokenSymbol'],
+                'contractAddress': contract_address,
             }
 
     def get_case_labels(self, case_name: str) -> Dict[str, str]:

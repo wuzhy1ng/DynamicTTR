@@ -1,3 +1,5 @@
+from typing import Any
+
 import networkx as nx
 
 
@@ -22,29 +24,48 @@ class PushPopModel:
         """
         raise NotImplementedError()
 
+
+class PushPopAggregator:
+    def __init__(
+            self, source_list: list,
+            model_cls: Any,
+    ):
+        self.source_list = source_list
+        self.model_cls = model_cls
+
     def execute(self, graph: nx.MultiDiGraph) -> nx.MultiDiGraph:
-        # init on the source
-        edges = list()
-        for src in self.source:
-            for edge_view in [graph.in_edges(src, data=True), graph.out_edges(src, data=True)]:
-                for u, v, attrs in edge_view:
-                    edges.append({'from': u, 'to': v, **attrs})
-            self.push(self.source, edges)
+        vis = set(self.source_list)
+        for src in self.source_list:
+            # get the instance
+            model = self.model_cls(src)
 
-        # expanding
-        node = self.pop()
-        vis = {node['node']} if isinstance(node, dict) else {node}
-
-        while node is not None:
+            # init on the source
             edges = list()
-            for edge_view in [graph.in_edges(node, data=True), graph.out_edges(node, data=True)]:
+            for edge_view in [
+                graph.in_edges(src, data=True),
+                graph.out_edges(src, data=True)
+            ]:
                 for u, v, attrs in edge_view:
                     edges.append({'from': u, 'to': v, **attrs})
-            self.push(node, edges)
+            model.push(src, edges)
 
-            node = self.pop()  # 重新获取新节点
-            if node is not None:
-                node = node['node'] if isinstance(node, dict) else node
-                vis.add(node)
+            # expanding
+            node = model.pop()
+            node = node['node'] if isinstance(node, dict) else node
+            while node is not None:
+                edges = list()
+                for edge_view in [
+                    graph.in_edges(node, data=True),
+                    graph.out_edges(node, data=True)
+                ]:
+                    for u, v, attrs in edge_view:
+                        edges.append({'from': u, 'to': v, **attrs})
+                model.push(node, edges)
+
+                # get the next node
+                node = model.pop()
+                if node is not None:
+                    node = node['node'] if isinstance(node, dict) else node
+                    vis.add(node)
 
         return graph.subgraph(list(vis))
