@@ -2,8 +2,6 @@ import csv
 import os
 from typing import List, Iterator, Dict
 
-import pandas as pd
-
 
 class DynamicTransNetwork:
     def __init__(self, raw_path: str):
@@ -26,6 +24,8 @@ class DynamicTransNetwork:
                 data.append(row)
         data.sort(key=lambda x: int(x['timeStamp']))
         for row_data in data:
+            if row_data['isError'] != '':
+                continue
             contract_address = row_data['contractAddress'] \
                 if row_data['contractAddress'] != '' \
                 else '0x' + '0' * 40
@@ -38,8 +38,7 @@ class DynamicTransNetwork:
     def get_case_labels(self, case_name: str) -> Dict[str, str]:
         result = dict()
         path = os.path.join(self.raw_path, case_name, 'all-address.csv')
-        data = pd.read_csv(path)
-        for _, row in data.iterrows():
-            row_data = row.to_dict()
-            result[row_data['address']] = row_data['name_tag']
+        with open(path, 'r', encoding='utf-8') as f:
+            for row in csv.DictReader(f):
+                result[row['address']] = row['name_tag']
         return result

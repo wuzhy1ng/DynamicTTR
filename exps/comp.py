@@ -70,7 +70,7 @@ def eval_case_from_pushpop(
     witness_graph = graph.subgraph(list(vis))
 
     # collect the metrics and return the result
-    depth = calc_depth(witness_graph, vis)
+    depth = calc_depth({addr2label.get(addr) for addr in vis})
     recall = calc_recall(witness_graph, list(targets))
     num_nodes = calc_size(witness_graph)
     return (depth, recall, num_nodes, time_used)
@@ -90,19 +90,19 @@ def eval_case_from_edge_arrive(
     :return: the collected evaluating metrics
     """
     # init the source
-    vis = set()
+    sources = set()
     targets = set()
     pattern = r"ml_transit_.*?"
     addr2label = dataset.get_case_labels(case_name)
     for addr, label in addr2label.items():
         if label == 'ml_transit_0':
-            vis.add(addr)
+            sources.add(addr)
         if re.match(pattern, str(label)):
             targets.add(addr)  ######## sir this way
 
     # build the snapshot network from arrived edges
     time_used = 0
-    model = model_cls(source=list(vis))
+    model = model_cls(source=list(sources))
     graph = nx.MultiDiGraph()
     for u, v, attr in tqdm(
             iterable=dataset.iter_edge_arrive(case_name),
@@ -112,10 +112,11 @@ def eval_case_from_edge_arrive(
         s_time = time.time()
         model.edge_arrive(u, v, attr)
         time_used += (time.time() - s_time)
-    witness_graph = graph.subgraph(list(model.p.keys()))
+    vis = list(model.p.keys())
+    witness_graph = graph.subgraph(vis)
 
     # collect the metrics and return the result
-    depth = calc_depth(witness_graph, vis)
+    depth = calc_depth({addr2label.get(addr) for addr in vis})
     recall = calc_recall(witness_graph, list(targets))
     num_nodes = calc_size(witness_graph)
     return (depth, recall, num_nodes, time_used)
@@ -170,7 +171,7 @@ if __name__ == '__main__':
     )
     for model_cls in [
         BFS, Poison, Haircut,
-        TTRRedirect
+        APPR, TTRRedirect
     ]:
         eval_method(
             dataset=dataset,
