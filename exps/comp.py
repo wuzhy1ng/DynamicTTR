@@ -14,7 +14,7 @@ from algos.dttr import DTTR
 from algos.haricut import Haircut
 from algos.poison import Poison
 from algos.push_pop import PushPopAggregator
-from algos.ttr import TTRRedirect
+from algos.ttr import TTRRedirect, TTRPowerWeight
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)).rsplit('/', 1)[0])
 
@@ -170,8 +170,9 @@ if __name__ == '__main__':
         eval_fn=eval_case_from_edge_arrive,
     )
     for model_cls in [
-        BFS, Poison, Haircut,
-        APPR, TTRRedirect
+        # BFS, Poison, Haircut,
+        # APPR, TTRRedirect
+        TTRPowerWeight
     ]:
         eval_method(
             dataset=dataset,

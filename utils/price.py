@@ -7,7 +7,7 @@ import requests
 @functools.lru_cache(maxsize=2 ** 16)
 def get_usd_price(contract_address: str, timestamp: int) -> Dict | None:
     response = requests.post(
-        url='http://127.0.0.1:55000/api/v1/get_token_price_usd',
+        url='http://172.18.219.142:55000/api/v1/get_token_price_usd',
         json={
             "jsonrpc": "2.0",
             "id": "0",

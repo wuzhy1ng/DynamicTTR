@@ -7,6 +7,7 @@ from utils.price import get_usd_price
 
 _NUM_ZERO = decimal.Decimal('0')
 _NUM_ONE = decimal.Decimal('1')
+_NUM_TWO = decimal.Decimal('2')
 
 
 class DTTR:
@@ -56,8 +57,9 @@ class DTTR:
                 value=value,
                 timestamp=attrs['timeStamp'],
             )
-        if value.is_zero():  # double check whether the usd price is zero
+        if value.is_zero() or value < _NUM_ONE:  # double check whether the usd price is zero
             return
+        value = value.log10() / _NUM_TWO.log10()
 
         # add restart edges
         if not self._node2outsum.get(v):

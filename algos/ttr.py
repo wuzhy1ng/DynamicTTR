@@ -153,6 +153,75 @@ class TTRWeight(TTR):
         return dict(node=node, residual=r) if node is not None else None
 
 
+class TTRPowerWeight(TTR):
+    name = 'TTRPowerWeight'
+
+    def __init__(
+            self, source,
+            alpha: float = 0.15,
+            beta: float = 0.8,
+            epsilon: float = 1e-5,
+            gamma: float = 0.2,
+    ):
+        super().__init__(source, alpha, beta, epsilon)
+        self.p = dict()
+        self.r = {source: 1.0}
+        self._vis = set()
+
+    def push(self, node, edges: list, **kwargs):
+        # residual vector空值判定
+        if self.r.get(node) is None:
+            self.r[node] = 0
+
+        # 拷贝一份residual vector，原有的清空
+        r = self.r[node]
+        self.r[node] = 0
+
+        # push过程
+        self._self_push(node, r)
+        self._forward_push(node, edges, r)
+        self._backward_push(node, edges, r)
+
+        # yield edges
+        if node not in self._vis:
+            self._vis.add(node)
+            # yield from edges
+
+    def _self_push(self, node, r):
+        self.p[node] = self.p.get(node, 0) + self.alpha * r
+
+    def _forward_push(self, node, edges: list, r):
+        out_sum = 0
+        out_edges = list()
+        for e in edges:
+            if e['from'] == node:
+                out_sum += e['value']
+                out_edges.append(e)
+        for e in out_edges:
+            power_weight = (e['value'] / out_sum) if out_sum > 0 else 0
+            inc = (1 - self.alpha) * self.beta * power_weight * r
+            self.r[e['to']] = self.r.get(e['to'], 0) + inc
+
+    def _backward_push(self, node, edges: list, r):
+        in_sum = 0
+        in_edges = list()
+        for e in edges:
+            if e['to'] == node:
+                in_sum += e['value']
+                in_edges.append(e)
+        for e in in_edges:
+            power_weight = (e['value'] / in_sum) * r if in_sum > 0 else 0
+            inc = (1 - self.alpha) * (1 - self.beta) * power_weight * r if in_sum > 0 else 0
+            self.r[e['from']] = self.r.get(e['from'], 0) + inc
+
+    def pop(self):
+        node, r = None, self.epsilon
+        for _node, _r in self.r.items():
+            if _r > r:
+                node, r = _node, _r
+        return dict(node=node, residual=r) if node is not None else None
+
+
 class TTRTime(TTR):
     name = 'TTRTime'
 
