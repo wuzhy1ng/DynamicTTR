@@ -1,13 +1,12 @@
-import functools
+import decimal
 from typing import Dict
 
 import requests
 
 
-@functools.lru_cache(maxsize=2 ** 16)
 def get_usd_price(contract_address: str, timestamp: int) -> Dict | None:
     response = requests.post(
-        url='http://172.18.219.142:55000/api/v1/get_token_price_usd',
+        url='http://127.0.0.1:55000/api/v1/get_token_price_usd',
         json={
             "jsonrpc": "2.0",
             "id": "0",
@@ -23,3 +22,22 @@ def get_usd_price(contract_address: str, timestamp: int) -> Dict | None:
     if not data.get('result'):
         return None
     return data['result']
+
+
+def get_usd_value(
+        contract_address: str,
+        value: str,
+        timestamp: int
+) -> str:
+    data = get_usd_price(
+        contract_address=contract_address,
+        timestamp=timestamp
+    )
+    if data is None:
+        return '0'
+    value = decimal.Decimal(value)
+    token_decimals = decimal.Decimal(data['decimals'])
+    value = value / (decimal.Decimal('10') ** token_decimals)
+    price = decimal.Decimal(data['price'])
+    value = value * price
+    return str(value)

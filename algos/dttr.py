@@ -1,9 +1,11 @@
 import decimal
+import os
+from concurrent.futures.thread import ThreadPoolExecutor
 from typing import List, Dict, Any, Set
 
 import networkx as nx
 
-from utils.price import get_usd_price
+from utils.price import get_usd_value
 
 _NUM_ZERO = decimal.Decimal('0')
 _NUM_ONE = decimal.Decimal('1')
@@ -35,6 +37,8 @@ class DTTR:
             for s in self.source
         ])
 
+        self._pool = ThreadPoolExecutor(max_workers=max(os.cpu_count() // 2, 1))
+
     def edge_arrive(self, u: Any, v: Any, attrs: Dict):
         """
         Update the witness graph if edge arrived.
@@ -50,22 +54,95 @@ class DTTR:
         value = attrs.get('value', '0')
         if not self.p.get(u) or value == '0':
             return
-        value = decimal.Decimal(value)
         if self.is_in_usd:
-            value = self._value2usd(
+            value = get_usd_value(
                 contract_address=attrs['contractAddress'],
                 value=value,
                 timestamp=attrs['timeStamp'],
             )
-        if value.is_zero() or value < _NUM_ONE:  # double check whether the usd price is zero
+        value = decimal.Decimal(value)
+        if value.is_zero():
             return
-        value = value.log10() / _NUM_TWO.log10()
 
         # add restart edges
         if not self._node2outsum.get(v):
             self._witness_graph.add_edge(v, v, value=self.epsilon)
             self._node2outsum[v] = self.epsilon
 
+        # update mass and local push
+        nodes_push = self._update_mass(u, v, value)
+        self._local_push(nodes_push)
+
+    def transaction_arrive(self, g: nx.MultiDiGraph):
+        # filter out the zero value edges
+        # and the trans. without moving the mass from supporting nodes
+        edges = [
+            (u, v, attr) for u, v, attr in g.edges(data=True)
+            if attr.get('value', '0') != '0' and any([
+                self.p.get(u), self.p.get(v)
+            ])
+        ]
+        if len(edges) == 0:
+            return
+
+        # transform the value to usd price
+        if self.is_in_usd and len([e[2]['contractAddress'] for e in edges]) > 1:
+            params = [
+                (attr['contractAddress'], attr['value'], attr['timeStamp'])
+                for _, _, attr in edges
+            ]
+            results = self._pool.map(
+                lambda args: get_usd_value(*args),
+                params
+            )
+            nonzero_edges = list()
+            for edge, result in zip(edges, results):
+                u, v, attr = edge
+                if result == '0':
+                    continue
+                attr['value'] = result
+                nonzero_edges.append(edge)
+            edges = nonzero_edges
+
+        # model as a graph and delete the swaps
+        for _, _, attr in edges:
+            attr['value'] = decimal.Decimal(attr['value'])
+        nonzero_g = nx.MultiDiGraph()
+        nonzero_g.add_edges_from(edges)
+        nodes = self._det_swap_nodes(nonzero_g)
+        nonzero_g.remove_nodes_from(nodes)
+
+        # update mass and local push
+        for u, v, attr in nonzero_g.edges(data=True):
+            if not self.p.get(u):
+                continue
+
+            # add restart edges
+            if not self._node2outsum.get(v):
+                self._witness_graph.add_edge(v, v, value=self.epsilon)
+                self._node2outsum[v] = self.epsilon
+
+            # update mass and local push
+            nodes_push = self._update_mass(u, v, attr['value'])
+            self._local_push(nodes_push)
+
+    def _det_swap_nodes(self, g: nx.MultiDiGraph) -> Set:
+        result = set()
+        node2outcome, node2income = dict(), dict()
+        for u, v, attr in g.edges(data=True):
+            node2outcome[u] = node2outcome.get(u, _NUM_ZERO) + attr['value']
+            node2income[v] = node2income.get(v, _NUM_ZERO) + attr['value']
+        for node in [node for node in g.nodes()]:
+            outcome = node2outcome.get(node, _NUM_ZERO)
+            income = node2income.get(node, _NUM_ZERO)
+            if outcome.is_zero() or income.is_zero():
+                continue
+            rate = 1 - min(income, outcome) / max(outcome, income)
+            if rate <= 0.05:
+                result.add(node)
+        return result
+
+    def _update_mass(self, u: str, v: str, value: decimal.Decimal) -> Set:
         # init args
         d_out_old = self._node2outsum[u]
         d_out_new = d_out_old + value
@@ -86,13 +163,13 @@ class DTTR:
         if abs(self.r[v]) >= self.epsilon:
             nodes_push.add(v)
 
-        # record the new edge and run a local push
+        # record the new edge
         edge_data = self._witness_graph.get_edge_data(u, v)
         if edge_data is None:
             self._witness_graph.add_edge(u, v, value=value)
         else:
             edge_data['value'] += value
-        self._local_push(nodes_push)
+        return nodes_push
 
     def _local_push(self, nodes_push: Set[Any]):
         while len(nodes_push) > 0:
@@ -117,22 +194,6 @@ class DTTR:
                 if abs(self.r[neighbor]) >= self.epsilon:
                     nodes_push.add(neighbor)
 
-    def _value2usd(
-            self, contract_address: str,
-            value: decimal.Decimal,
-            timestamp: int
-    ) -> decimal.Decimal:
-        data = get_usd_price(
-            contract_address=contract_address,
-            timestamp=timestamp
-        )
-        if data is None:
-            return _NUM_ZERO
-        token_decimals = decimal.Decimal(data['decimals'])
-        value = value / (decimal.Decimal('10') ** token_decimals)
-        price = decimal.Decimal(data['price'])
-        return value * price
-
 
 if __name__ == '__main__':
     model = DTTR(
@@ -141,8 +202,43 @@ if __name__ == '__main__':
         epsilon=1e-3,
         is_in_usd=False,
     )
-    model.edge_arrive('a', 'b', {'value': 1})
-    model.edge_arrive('b', 'c', {'value': 2e18})
-    model.edge_arrive('b', 'a', {'value': 1})
-    model.edge_arrive('b', 'd', {'value': 1})
+    trans = nx.MultiDiGraph()
+    trans.add_edges_from([
+        ('a', 'b', {'value': '10'}),
+        ('b', 'a', {'value': '9.8'}),
+        ('a', 'c', {'value': '0.2'}),
+    ])
+    model.transaction_arrive(trans)
     print(model.p, model.r)
+
+    trans = nx.MultiDiGraph()
+    trans.add_edges_from([
+        ('a', 'c', {'value': '0.1'}),
+    ])
+    model.transaction_arrive(trans)
+    print(model.p, model.r)
+
+    trans = nx.MultiDiGraph()
+    trans.add_edges_from([
+        ('a', 'd', {'value': '9.5'}),
+    ])
+    model.transaction_arrive(trans)
+    print(model.p, model.r)
+
+    trans = nx.MultiDiGraph()
+    trans.add_edges_from([
+        ('d', 'e', {'value': '9'}),
+    ])
+    model.transaction_arrive(trans)
+    print(model.p, model.r)
+
+    # trans = nx.MultiDiGraph()
+    # trans.add_edges_from([
+    #     ('a', 'e', {'value': '9'}),
+    # ])
+    # model.transaction_arrive(trans)
+    # model.edge_arrive('a', 'b', {'value': 10})
+    # model.edge_arrive('b', 'a', {'value': 9.8})
+    # model.edge_arrive('a', 'c', {'value': 9.7})
+    # model.edge_arrive('c', 'd', {'value': 9})
+    # print(model.p, model.r)

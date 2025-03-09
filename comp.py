@@ -1,6 +1,4 @@
 import argparse
-import os
-import sys
 import time
 from datetime import datetime
 from typing import Tuple, Any, Callable
@@ -14,9 +12,7 @@ from algos.dttr import DTTR
 from algos.haricut import Haircut
 from algos.poison import Poison
 from algos.push_pop import PushPopAggregator
-from algos.ttr import TTRRedirect, TTRPowerWeight
-
-sys.path.append(os.path.dirname(os.path.abspath(__file__)).rsplit('/', 1)[0])
+from algos.ttr import TTRRedirect
 
 from utils.metrics import calc_depth, calc_recall, calc_size
 from dataset.dynamic import DynamicTransNetwork
@@ -122,6 +118,67 @@ def eval_case_from_edge_arrive(
     return (depth, recall, num_nodes, time_used)
 
 
+def eval_case_from_transaction_arrive(
+        dataset: DynamicTransNetwork,
+        case_name: str,
+        model_cls: Any = DTTR,
+) -> Tuple:
+    """
+    Perform the evaluation with the transaction arrived method.
+
+    :param dataset: the dynamic network
+    :param case_name: the tracing case name
+    :param model_cls: the class of the transaction arrived method
+    :return: the collected evaluating metrics
+    """
+    # init the source
+    sources = set()
+    targets = set()
+    pattern = r"ml_transit_.*?"
+    addr2label = dataset.get_case_labels(case_name)
+    for addr, label in addr2label.items():
+        if label == 'ml_transit_0':
+            sources.add(addr)
+        if re.match(pattern, str(label)):
+            targets.add(addr)  ######## sir this way
+
+    # build the time-ordered trans. from arrived edges
+    trans2time, trans2edges = dict(), dict()
+    for u, v, attr in dataset.iter_edge_arrive(case_name):
+        txhash = attr['hash']
+        if trans2edges.get(txhash) is None:
+            trans2edges[txhash] = list()
+        trans2edges[txhash].append((u, v, attr))
+        if trans2time.get(txhash):
+            continue
+        trans2time[txhash] = attr['timeStamp']
+    txhash_sorted = sorted(list(trans2time.items()), key=lambda x: x[1])
+    txhash_sorted = [txhash for txhash, _ in txhash_sorted]
+
+    # perform trans. arrive operations
+    time_used = 0
+    model = model_cls(source=list(sources))
+    graph = nx.MultiDiGraph()
+    for txhash in tqdm(
+            iterable=txhash_sorted,
+            desc=case_name,
+    ):
+        graph.add_edges_from(trans2edges[txhash])
+        trans = nx.MultiDiGraph()
+        trans.add_edges_from(trans2edges[txhash])
+        s_time = time.time()
+        model.transaction_arrive(trans)
+        time_used += (time.time() - s_time)
+    vis = list(model.p.keys())
+    witness_graph = graph.subgraph(vis)
+
+    # collect the metrics and return the result
+    depth = calc_depth({addr2label.get(addr) for addr in vis})
+    recall = calc_recall(witness_graph, list(targets))
+    num_nodes = calc_size(witness_graph)
+    return (depth, recall, num_nodes, time_used)
+
+
 def eval_method(
         dataset: DynamicTransNetwork,
         model_cls: Any,
@@ -141,11 +198,16 @@ def eval_method(
         list() for _ in range(4)
     ]
     for name in dataset.get_case_names():
-        print(datetime.now(), 'processing:', name)
         depth, recall, num_nodes, time_used = eval_fn(
             dataset=dataset,
             case_name=name,
             model_cls=model_cls,
+        )
+        print(
+            datetime.now(),
+            '{}: {}[depth], {}[recall], {}[#nodes], {}[#seconds]'.format(
+                name, depth, recall, num_nodes, time_used
+            )
         )
         list_depth.append(depth)
         list_recalls.append(recall)
@@ -167,12 +229,17 @@ if __name__ == '__main__':
     eval_method(
         dataset=dataset,
         model_cls=DTTR,
+        eval_fn=eval_case_from_transaction_arrive,
+    )
+    eval_method(
+        dataset=dataset,
+        model_cls=DTTR,
         eval_fn=eval_case_from_edge_arrive,
     )
     for model_cls in [
         # BFS, Poison, Haircut,
-        # APPR, TTRRedirect
-        TTRPowerWeight
+        # APPR,
+        # TTRRedirect
     ]:
         eval_method(
             dataset=dataset,
