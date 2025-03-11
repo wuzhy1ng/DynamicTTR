@@ -6,8 +6,8 @@ class Haircut(PushPopModel):
         super().__init__(source)
         assert 0 < min_weight < 1
         self.min_weight = min_weight
-        self.weight_map = {node: 1 for node in self.source}
         self._vis = {self.source}
+        self.weight_map = {node: 1 for node in self._vis}
 
     def push(self, node, edges: list, **kwargs):
         out_sum = 0
