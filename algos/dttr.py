@@ -16,7 +16,7 @@ class DTTR:
     def __init__(
             self, source: List[str],
             alpha: float = 0.15,
-            epsilon: float = 1e-4,
+            epsilon: float = 5e-4,
             is_in_usd: bool = True,
     ):
         assert 0 <= alpha <= 1
@@ -143,6 +143,10 @@ class DTTR:
         return result
 
     def _update_mass(self, u: str, v: str, value: decimal.Decimal) -> Set:
+        if value < _NUM_ONE:
+            return set()
+        value = value.log10()
+
         # init args
         d_out_old = self._node2outsum[u]
         d_out_new = d_out_old + value
