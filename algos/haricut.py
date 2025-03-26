@@ -1,4 +1,5 @@
 from algos.push_pop import PushPopModel
+import decimal
 
 
 class Haircut(PushPopModel):
@@ -14,7 +15,7 @@ class Haircut(PushPopModel):
         out_edges = list()
         for e in edges:
             if e.get('from') == node:
-                out_sum += float(e.get('value', 0))
+                out_sum += decimal.Decimal(e.get('value', 0))
                 out_edges.append(e)
 
         if out_sum == 0:
@@ -24,7 +25,7 @@ class Haircut(PushPopModel):
         self.weight_map[node] = 0
         for oe in out_edges:
             out_neibor = oe.get('to')
-            edge_value = float(oe.get('value'))
+            edge_value = decimal.Decimal(oe.get('value'))
             self.weight_map[out_neibor] = self.weight_map.get(out_neibor, 0) + \
                                           node_weight * (edge_value / out_sum)
 
@@ -49,10 +50,10 @@ class OPICHaircut(Haircut):
         in_edges, out_edges = list(), list()
         for e in edges:
             if e.get('from') == node:
-                out_sum += float(e.get('value', 0))
+                out_sum += decimal.Decimal(e.get('value', 0))
                 out_edges.append(e)
             elif e.get('to') == node:
-                in_sum += float(e.get('value', 0))
+                in_sum += decimal.Decimal(e.get('value', 0))
                 in_edges.append(e)
 
         if out_sum == 0 or in_sum / out_sum <= 0:
@@ -64,13 +65,13 @@ class OPICHaircut(Haircut):
         self.weight_map[node] = 0
         for oe in out_edges:
             out_neibor = oe.get('to')
-            edge_value = float(oe.get('value'))
+            edge_value = decimal.Decimal(oe.get('value'))
             self.weight_map[out_neibor] = self.weight_map.get(out_neibor, 0) + \
                                           node_weight * (edge_value / out_sum) * \
                                           self.tendency * R
         for ie in in_edges:
             in_neibor = ie.get('from')
-            edge_value = float(ie.get('value'))
+            edge_value = decimal.Decimal(ie.get('value'))
             self.weight_map[in_neibor] = self.weight_map.get(in_neibor, 0) + \
                                          node_weight * (edge_value / in_sum) * \
                                          (1 - self.tendency) * R

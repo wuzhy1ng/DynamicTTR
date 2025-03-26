@@ -1,13 +1,14 @@
 import decimal
 from typing import Dict
+from functools import lru_cache
 
 import requests
 
-
+@lru_cache(maxsize=10000)
 def get_usd_price(contract_address: str, timestamp: int) -> Dict | None:
     try:
         response = requests.post(
-            url='http://127.0.0.1:55000/api/v1/get_token_price_usd',
+            url='http://172.18.219.142:55000/api/v1/get_token_price_usd',
             json={
                 "jsonrpc": "2.0",
                 "id": "0",
@@ -26,7 +27,7 @@ def get_usd_price(contract_address: str, timestamp: int) -> Dict | None:
     except Exception as _:
         return None
 
-
+@lru_cache(maxsize=10000)
 def get_usd_value(
         contract_address: str,
         value: str,

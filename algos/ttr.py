@@ -1,5 +1,6 @@
 import sys
 import time
+import decimal
 
 from algos.push_pop import PushPopModel
 
@@ -7,9 +8,9 @@ from algos.push_pop import PushPopModel
 class TTR(PushPopModel):
     def __init__(
             self,
-            source, alpha: float = 0.15,
-            beta: float = 0.8,
-            epsilon: float = 1e-5,
+            source, alpha: decimal.Decimal = 0.15,
+            beta: decimal.Decimal = 0.8,
+            epsilon: decimal.Decimal = 1e-5,
     ):
         super().__init__(source)
         self.alpha = alpha
@@ -29,9 +30,9 @@ class TTRBase(TTR):
     def __init__(
             self,
             source,
-            alpha: float = 0.15,
-            beta: float = 0.8,
-            epsilon: float = 1e-5,
+            alpha: decimal.Decimal = 0.15,
+            beta: decimal.Decimal = 0.8,
+            epsilon: decimal.Decimal = 1e-5,
     ):
         super().__init__(source, alpha, beta, epsilon)
         self.p = dict()
@@ -93,7 +94,7 @@ class TTRBase(TTR):
 class TTRWeight(TTR):
     name = 'TTRWeight'
 
-    def __init__(self, source, alpha: float = 0.15, beta: float = 0.8, epsilon=1e-5):
+    def __init__(self, source, alpha: decimal.Decimal = 0.15, beta: decimal.Decimal = 0.8, epsilon=1e-5):
         super().__init__(source, alpha, beta, epsilon)
         self.p = dict()
         self.r = {source: 1.0}
@@ -158,10 +159,10 @@ class TTRPowerWeight(TTR):
 
     def __init__(
             self, source,
-            alpha: float = 0.15,
-            beta: float = 0.8,
-            epsilon: float = 1e-5,
-            gamma: float = 0.2,
+            alpha: decimal.Decimal = 0.15,
+            beta: decimal.Decimal = 0.8,
+            epsilon: decimal.Decimal = 1e-5,
+            gamma: decimal.Decimal = 0.2,
     ):
         super().__init__(source, alpha, beta, epsilon)
         self.p = dict()
@@ -225,7 +226,7 @@ class TTRPowerWeight(TTR):
 class TTRTime(TTR):
     name = 'TTRTime'
 
-    def __init__(self, source, alpha: float = 0.15, beta: float = 0.8, epsilon=1e-5):
+    def __init__(self, source, alpha: decimal.Decimal = 0.15, beta: decimal.Decimal = 0.8, epsilon=1e-5):
         super().__init__(source, alpha, beta, epsilon)
         self.p = dict()
         self.r = dict()
@@ -395,7 +396,7 @@ class TTRTime(TTR):
 class TTRRedirect(TTR):
     name = 'TTRRedirect'
 
-    def __init__(self, source, alpha: float = 0.15, beta: float = 0.8, epsilon=1e-5):
+    def __init__(self, source, alpha: decimal.Decimal = 0.15, beta: decimal.Decimal = 0.8, epsilon=1e-5):
         super().__init__(source, alpha, beta, epsilon)
         self.p = dict()
         self.r = dict()
@@ -429,7 +430,7 @@ class TTRRedirect(TTR):
                 if e.get('from') == self.source and out_sum.get(e.get('symbol'), 0) != 0:
                     if self.r.get(e.get('to')) is None:
                         self.r[e.get('to')] = list()
-                    value = (1 - self.alpha) * self.beta * e.get('value', 0) / out_sum[e.get('symbol')]
+                    value = decimal.Decimal(1 - self.alpha) * decimal.Decimal(self.beta) * e.get('value', 0) / out_sum[e.get('symbol')]
                     if value > 0:
                         self.r[e.get('to')].append(dict(
                             value=value,
@@ -439,7 +440,7 @@ class TTRRedirect(TTR):
                 elif e.get('to') == self.source and in_sum.get(e.get('symbol'), 0) != 0:
                     if self.r.get(e.get('from')) is None:
                         self.r[e.get('from')] = list()
-                    value = (1 - self.alpha) * (1 - self.beta) * e.get('value', 0) / in_sum[e.get('symbol')]
+                    value = decimal.Decimal(1 - self.alpha) * decimal.Decimal(1 - self.beta) * e.get('value', 0) / in_sum[e.get('symbol')]
                     if value > 0:
                         self.r[e.get('from')].append(dict(
                             value=value,
@@ -495,7 +496,7 @@ class TTRRedirect(TTR):
         sum_r = 0
         for chip in r:
             sum_r += chip.get('value', 0)
-        self.p[node] = self.p.get(node, 0) + self.alpha * sum_r
+        self.p[node] = decimal.Decimal(self.p.get(node, 0)) + decimal.Decimal(self.alpha) * decimal.Decimal(sum_r)
 
     def _forward_push(self, node, aggregated_edges: list, r: list):
         if len(r) == 0:
@@ -552,7 +553,7 @@ class TTRRedirect(TTR):
                 j += 1
 
             for profit in output_profits:
-                inc = (1 - self.alpha) * self.beta * profit.value * d.get(profit.symbol, 0)
+                inc = decimal.Decimal(1 - self.alpha) * decimal.Decimal(self.beta) * decimal.Decimal(profit.value) * d.get(profit.symbol, 0)
                 if inc == 0:
                     continue
 
@@ -579,7 +580,7 @@ class TTRRedirect(TTR):
         while j < len(r):
             c = r[j]
             key = c.get('symbol'), c.get('timestamp')
-            cs[key] = cs.get(key, 0) + (1 - self.alpha) * self.beta * c.get('value', 0)
+            cs[key] = cs.get(key, 0) + decimal.Decimal(1 - self.alpha) * decimal.Decimal(self.beta) * decimal.Decimal(c.get('value', 0))
             j += 1
         for key, value in cs.items():
             self.r[node].append(dict(
@@ -643,7 +644,7 @@ class TTRRedirect(TTR):
                 j -= 1
 
             for profit in input_profits:
-                inc = (1 - self.alpha) * (1 - self.beta) * profit.value * d.get(profit.symbol, 0)
+                inc = decimal.Decimal(1 - self.alpha) * decimal.Decimal(1 - self.beta) * decimal.Decimal(profit.value) * d.get(profit.symbol, 0)
                 if inc == 0:
                     continue
 
@@ -670,7 +671,7 @@ class TTRRedirect(TTR):
         while j >= 0:
             c = r[j]
             key = c.get('symbol'), c.get('timestamp')
-            cs[key] = cs.get(key, 0) + (1 - self.alpha) * (1 - self.beta) * c.get('value', 0)
+            cs[key] = cs.get(key, 0) + decimal.Decimal(1 - self.alpha) * decimal.Decimal(1 - self.beta) * decimal.Decimal(c.get('value', 0))
             j -= 1
         for key, value in cs.items():
             self.r[node].append(dict(
@@ -698,7 +699,7 @@ class TTRRedirect(TTR):
             aggregated_edges: list,
             distributing_index: dict,
             symbol_agg_es_idx: dict,
-            chip_value: float,
+            chip_value: decimal.Decimal,
     ) -> list:
         """
 
@@ -919,7 +920,7 @@ class TTRRedirect(TTR):
         def __init__(
                 self,
                 _address: str,
-                _value: float,
+                _value: decimal.Decimal,
                 _timestamp: int,
                 _symbol: str,
         ):
