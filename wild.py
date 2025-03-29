@@ -1,4 +1,5 @@
 import asyncio
+import datetime
 import json
 import os.path
 
@@ -18,6 +19,7 @@ async def listen(address: str):
         while True:
             data = await ws.recv()
             data = json.loads(data)
+            print(datetime.datetime.now(), 'get flow change from:', address, data)
             file.write(json.dumps(data))
             file.write('\n')
             file.flush()
@@ -31,6 +33,7 @@ async def generate_swap_addresses():
             data = json.loads(data)
             if data['address'] in SWAP_ADDRESSES or len(SWAP_ADDRESSES) > MAX_NUM_ADDRESSES:
                 continue
+            print(datetime.datetime.now(), 'get swapper:', data)
             SWAP_ADDRESSES.add(data['address'])
             SWAP_ACTION_FILE.write(json.dumps(data))
             SWAP_ACTION_FILE.write('\n')
@@ -39,6 +42,7 @@ async def generate_swap_addresses():
 
 
 async def main():
+    print(datetime.datetime.now(), 'start...')
     async for address in generate_swap_addresses():
         task = listen(address)
         asyncio.create_task(task)
