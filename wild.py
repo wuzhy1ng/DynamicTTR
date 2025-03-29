@@ -2,7 +2,9 @@ import asyncio
 import datetime
 import json
 import os.path
+import traceback
 
+import aiohttp
 import websockets
 
 MAX_NUM_ADDRESSES = 1000
@@ -33,12 +35,55 @@ async def generate_swap_addresses():
             data = json.loads(data)
             if data['address'] in SWAP_ADDRESSES or len(SWAP_ADDRESSES) > MAX_NUM_ADDRESSES:
                 continue
+            # check the address is valuable or not
+            if not await is_valuable(data['address']):
+                continue
             print(datetime.datetime.now(), 'get swapper:', data)
             SWAP_ADDRESSES.add(data['address'])
             SWAP_ACTION_FILE.write(json.dumps(data))
             SWAP_ACTION_FILE.write('\n')
             SWAP_ACTION_FILE.flush()
             yield data['address']
+
+
+async def is_valuable(address: str) -> bool:
+    # check for labeled or not
+    client = aiohttp.ClientSession()
+    try:
+        resp = await client.post(
+            url='http://localhost:55000/api/v1/get_address_label',
+            json={
+                "jsonrpc": "2.0",
+                "id": "0",
+                "method": "get_address_label",
+                "params": {"addresses": [address]},
+            }
+        )
+        data = await resp.json()
+        labels = data['result']['address']
+        if len(labels) > 0:
+            return False
+
+        # check the address is contract or not
+        resp = await client.post(
+            url='https://mainnet.chainnodes.org/9c408170-0042-4ff0-bb1c-2f3e44284644',
+            json={
+                "jsonrpc": "2.0",
+                "method": "eth_getCode",
+                "params": [address, "latest"],
+                "id": 1
+            }
+        )
+        resp = await resp.json()
+        data = await resp.json()
+        if data['result'] != '0x':
+            return False
+        return True
+    except Exception as e:
+        traceback.print_exc()
+    finally:
+        await client.close()
+    return False
 
 
 async def main():
