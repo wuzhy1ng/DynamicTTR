@@ -94,7 +94,7 @@ def eval_case_from_edge_arrive(
         if label == 'ml_transit_0':
             sources.add(addr)
         if re.match(pattern, str(label)):
-            targets.add(addr)  ######## sir this way
+            targets.add(addr)
 
     # build the snapshot network from arrived edges
     time_used = 0
@@ -134,13 +134,13 @@ def eval_case_from_transaction_arrive(
     # init the source
     sources = set()
     targets = set()
-    pattern = r"ml_transit_.*?"
+    pattern = r"ml_transit_(\d+)"
     addr2label = dataset.get_case_labels(case_name)
     for addr, label in addr2label.items():
         if label == 'ml_transit_0':
             sources.add(addr)
         if re.match(pattern, str(label)):
-            targets.add(addr)  ######## sir this way
+            targets.add(addr)
 
     # build the time-ordered trans. from arrived edges
     trans2time, trans2edges = dict(), dict()
@@ -170,6 +170,10 @@ def eval_case_from_transaction_arrive(
         model.transaction_arrive(trans)
         time_used += (time.time() - s_time)
     vis = list(model.p.keys())
+    # vis = [
+    #     node for node in model.p.keys()
+    #     if model.p[node] >= model.epsilon
+    # ]
     witness_graph = graph.subgraph(vis)
 
     # collect the metrics and return the result
@@ -237,9 +241,10 @@ if __name__ == '__main__':
         eval_fn=eval_case_from_edge_arrive,
     )
     for model_cls in [
-        # BFS, Poison, Haircut,
-        # APPR,
-        # TTRRedirect
+        BFS, Poison,
+        Haircut,
+        APPR,
+        TTRRedirect
     ]:
         eval_method(
             dataset=dataset,

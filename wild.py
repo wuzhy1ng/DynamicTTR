@@ -8,6 +8,9 @@ import aiohttp
 import websockets
 
 MAX_NUM_ADDRESSES = 1000
+WILD_DATA_PATH = './wild_data'
+if not os.path.exists(WILD_DATA_PATH):
+    os.makedirs(WILD_DATA_PATH)
 SWAP_ADDRESSES = set()
 SWAP_ACTION_FILE = open('./wild_data/swap_actions', 'w', encoding='utf-8')
 SWAP_LISTENER_PATH = './wild_data'
@@ -35,10 +38,12 @@ async def generate_swap_addresses():
             data = json.loads(data)
             if data['address'] in SWAP_ADDRESSES or len(SWAP_ADDRESSES) > MAX_NUM_ADDRESSES:
                 continue
+            print(datetime.datetime.now(), 'get swapper candidate:', data)
+
             # check the address is valuable or not
             if not await is_valuable(data['address']):
                 continue
-            print(datetime.datetime.now(), 'get swapper:', data)
+            print(datetime.datetime.now(), 'get valuable swapper:', data['address'])
             SWAP_ADDRESSES.add(data['address'])
             SWAP_ACTION_FILE.write(json.dumps(data))
             SWAP_ACTION_FILE.write('\n')
@@ -60,7 +65,7 @@ async def is_valuable(address: str) -> bool:
             }
         )
         data = await resp.json()
-        labels = data['result']['address']
+        labels = data['result'][address]
         if len(labels) > 0:
             return False
 
@@ -74,7 +79,6 @@ async def is_valuable(address: str) -> bool:
                 "id": 1
             }
         )
-        resp = await resp.json()
         data = await resp.json()
         if data['result'] != '0x':
             return False
