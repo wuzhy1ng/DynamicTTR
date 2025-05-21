@@ -52,12 +52,6 @@ class DAPPR:
         value = attrs.get('value', '0')
         if not self.p.get(u) or value == '0':
             return
-        # if self.is_in_usd:
-        #     value = get_usd_value(
-        #         contract_address=attrs['contractAddress'],
-        #         value=value,
-        #         timestamp=attrs['timeStamp'],
-        #     )
         value = decimal.Decimal(value)
         if value.is_zero():
             return
