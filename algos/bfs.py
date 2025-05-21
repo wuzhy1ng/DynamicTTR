@@ -10,22 +10,22 @@ class BFS(PushPopModel):
         self._vis = {self.source}
         self._queue = Queue()
 
-    def push(self, node, edges: list, cur_depth: int = 0):
+    def push(self, node, edges: list, depth: int = 0):
         """
         push a node with related edges, and the edges requires `from` and `to`
         :param node:
         :param edges:
-        :param cur_depth:
+        :param depth:
         :return:
         """
-        assert cur_depth >= 0
+        assert depth >= 0
 
-        if cur_depth + 1 > self.depth:
+        if depth + 1 > self.depth:
             return
 
         for e in edges:
-            self._queue.put((e.get('from'), cur_depth + 1))
-            self._queue.put((e.get('to'), cur_depth + 1))
+            self._queue.put((e.get('from'), depth + 1))
+            self._queue.put((e.get('to'), depth + 1))
 
     def pop(self):
         while not self._queue.empty():

@@ -3,7 +3,7 @@ from utils.cache import LRUCache
 
 
 class APPR(PushPopModel):
-    def __init__(self, source, alpha: float = 0.15, epsilon: float = 1e-5):
+    def __init__(self, source, alpha: float = 0.15, epsilon: float = 1e-3):
         super().__init__(source)
 
         assert 0 <= alpha <= 1

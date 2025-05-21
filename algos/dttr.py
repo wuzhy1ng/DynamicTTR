@@ -15,8 +15,8 @@ _NUM_TWO = decimal.Decimal('2')
 class DTTR:
     def __init__(
             self, source: List[str],
-            alpha: float = 0.15,
-            epsilon: float = 5e-4,
+            alpha: float = 0.1,
+            epsilon: float = 1e-3,
             is_in_usd: bool = True,
     ):
         assert 0 <= alpha <= 1
@@ -78,7 +78,7 @@ class DTTR:
         # and the trans. without moving the mass from supporting nodes
         edges = [
             (u, v, attr) for u, v, attr in g.edges(data=True)
-            if attr.get('value', '0') != '0' and any([
+            if float(attr.get('value', '0')) != 0 and any([
                 self.p.get(u), self.p.get(v)
             ])
         ]
@@ -119,8 +119,11 @@ class DTTR:
 
             # add restart edges
             if not self._node2outsum.get(v):
-                self._witness_graph.add_edge(v, v, value=self.epsilon)
-                self._node2outsum[v] = self.epsilon
+                for s in self.source:
+                    self._witness_graph.add_edge(v, s, value=self.epsilon)
+                self._node2outsum[v] = self.epsilon * len(self.source)
+                # self._witness_graph.add_edge(v, v, value=self.epsilon)
+                # self._node2outsum[v] = self.epsilon
 
             # update mass and local push
             nodes_push = self._update_mass(u, v, attr['value'])

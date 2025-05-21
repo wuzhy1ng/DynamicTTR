@@ -14,7 +14,7 @@ from algos.poison import Poison
 from algos.push_pop import PushPopAggregator
 from algos.ttr import TTRRedirect
 
-from utils.metrics import calc_depth, calc_recall, calc_size
+from utils.metrics import calc_depth, calc_recall, calc_size, calc_precision
 from dataset.dynamic import DynamicTransNetwork
 import re
 
@@ -45,6 +45,7 @@ def eval_case_from_pushpop(
             targets.add(addr)
 
     # build the snapshot network from arrived edges
+    s_time = time.time()
     graph = nx.MultiDiGraph()
     time_used = 0
     for u, v, attr in tqdm(
@@ -55,21 +56,21 @@ def eval_case_from_pushpop(
         graph.add_edge(u, v, **attr)
         # if u not in vis and v not in vis:
         #     continue
-    s_time = time.time()
+    source = sorted(list(sources))[0]
     aggregator = PushPopAggregator(
-        source_list=list(sources),
+        source=source,
         model_cls=model_cls,
     )
     witness_graph = aggregator.execute(graph)
-    vis = set([n for n in witness_graph.nodes()])
     time_used += (time.time() - s_time)
-    witness_graph = graph.subgraph(list(vis))
 
     # collect the metrics and return the result
-    depth = calc_depth({addr2label.get(addr) for addr in vis})
-    recall = calc_recall(witness_graph, list(targets))
+    depth = calc_depth(witness_graph, [source])
+    recall = calc_recall(witness_graph, targets)
+    precision = calc_precision(witness_graph, targets)
     num_nodes = calc_size(witness_graph)
-    return (depth, recall, num_nodes, time_used)
+    tps = 1 / (time_used if time_used > 0 else 1)
+    return (depth, recall, precision, num_nodes, tps)
 
 
 def eval_case_from_edge_arrive(
@@ -112,10 +113,12 @@ def eval_case_from_edge_arrive(
     witness_graph = graph.subgraph(vis)
 
     # collect the metrics and return the result
-    depth = calc_depth({addr2label.get(addr) for addr in vis})
-    recall = calc_recall(witness_graph, list(targets))
+    depth = calc_depth(witness_graph, sources)
+    recall = calc_recall(witness_graph, targets)
+    precision = calc_precision(witness_graph, targets)
     num_nodes = calc_size(witness_graph)
-    return (depth, recall, num_nodes, time_used)
+    tps = dataset.get_case_transaction_count(case_name) / (time_used if time_used > 0 else 1)
+    return (depth, recall, precision, num_nodes, tps)
 
 
 def eval_case_from_transaction_arrive(
@@ -177,10 +180,12 @@ def eval_case_from_transaction_arrive(
     witness_graph = graph.subgraph(vis)
 
     # collect the metrics and return the result
-    depth = calc_depth({addr2label.get(addr) for addr in vis})
-    recall = calc_recall(witness_graph, list(targets))
+    depth = calc_depth(witness_graph, sources)
+    recall = calc_recall(witness_graph, targets)
+    precision = calc_precision(witness_graph, targets)
     num_nodes = calc_size(witness_graph)
-    return (depth, recall, num_nodes, time_used)
+    tps = dataset.get_case_transaction_count(case_name) / (time_used if time_used > 0 else 1)
+    return (depth, recall, precision, num_nodes, tps)
 
 
 def eval_method(
@@ -197,31 +202,34 @@ def eval_method(
     :param eval_fn: the case evaluation function
     :return:
     """
-    print('======= Evaluating: {} ======='.format(model_cls))
-    list_depth, list_recalls, list_num_nodes, list_time_used = [
-        list() for _ in range(4)
+    (list_depth, list_recalls, list_precisions,
+     list_num_nodes, list_time_used, list_tps) = [
+        list() for _ in range(6)
     ]
     for name in dataset.get_case_names():
-        depth, recall, num_nodes, time_used = eval_fn(
+        depth, recall, precision, num_nodes, tps = eval_fn(
             dataset=dataset,
             case_name=name,
             model_cls=model_cls,
         )
         print(
             datetime.now(),
-            '{}: {}[depth], {}[recall], {}[#nodes], {}[#seconds]'.format(
-                name, depth, recall, num_nodes, time_used
+            '{}: {}[depth], {}[recall], {}[precision] {}[#nodes], {}[tps]'.format(
+                name, depth, recall, precision, num_nodes, tps
             )
         )
-        list_depth.append(depth)
+        list_depth.append(depth + 1)
         list_recalls.append(recall)
+        list_precisions.append(precision)
         list_num_nodes.append(num_nodes)
-        list_time_used.append(time_used)
+        list_tps.append(tps)
 
+    print('======= Evaluation: {} ======='.format(model_cls))
     print('Depth: {} (mean)'.format(sum(list_depth) / len(list_depth)), list_depth)
     print('Recall: {} (mean)'.format(sum(list_recalls) / len(list_recalls)), list_recalls)
+    print('Precision: {} (mean)'.format(sum(list_precisions) / len(list_precisions)), list_precisions)
     print('Num Nodes: {} (mean)'.format(sum(list_num_nodes) / len(list_num_nodes)), list_num_nodes)
-    print('Used Time: {} (mean)'.format(sum(list_time_used) / len(list_time_used)), list_time_used)
+    print('TPS: {} (mean)'.format(min(list_tps)), list_tps)
 
 
 if __name__ == '__main__':

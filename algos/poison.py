@@ -10,15 +10,15 @@ class Poison(PushPopModel):
         self._vis = {self.source}
         self._queue = Queue()
 
-    def push(self, node, edges: list, cur_depth: int = 0):
-        assert cur_depth >= 0
+    def push(self, node, edges: list, depth: int = 0):
+        assert depth >= 0
 
-        if cur_depth + 1 > self.depth:
+        if depth + 1 > self.depth:
             return
 
         for e in edges:
             if e.get('from') == node:
-                self._queue.put((e.get('to'), cur_depth + 1))
+                self._queue.put((e.get('to'), depth + 1))
 
     def pop(self):
         while not self._queue.empty():

@@ -1,6 +1,12 @@
-from typing import Dict, Set
+from typing import Set
 
 import networkx as nx
+
+
+def calc_precision(witness_graph: nx.MultiDiGraph, targets) -> float:
+    assert len(targets) > 0
+    hits = set(list(witness_graph.nodes())).intersection(targets)
+    return len(hits) / witness_graph.number_of_nodes()
 
 
 def calc_recall(witness_graph: nx.MultiDiGraph, targets) -> float:
@@ -30,7 +36,7 @@ def calc_coverage(
     for u, v, attr in graph.out_edges(data=True):
         if u in witness_graph and not v in witness_graph:
             all_out_value += float(attr['value'])
-    
+
     # witness_graph中的余额
     bal = dict()
     for u, v, attr in graph.in_edges(data=True):
@@ -42,23 +48,24 @@ def calc_coverage(
     for u, v, attr in graph.out_edges(data=True):
         if u in witness_graph:
             if bal.get(u):
-                bal[u] = 0 if bal[u]<float(attr['value']) else bal[u]-float(attr['value'])
+                bal[u] = 0 if bal[u] < float(attr['value']) else bal[u] - float(attr['value'])
             else:
                 bal[u] = 0
-    
-    return (sum(bal.values())+all_out_value)/all_dirty_value
+
+    return (sum(bal.values()) + all_out_value) / all_dirty_value
+
 
 def calc_size(witness_graph: nx.MultiDiGraph) -> int:
     return witness_graph.number_of_nodes()
 
 
-def calc_depth(vis_labels: Set) -> int:
-    vis_labels = [
-        label for label in vis_labels
-        if label and label.startswith('ml_transit_')
-    ]
-    node_depths = [
-        int(label.replace('ml_transit_', ''))
-        for label in vis_labels
-    ]
-    return 0 if node_depths == [] else max(node_depths)
+def calc_depth(witness_graph: nx.MultiDiGraph, sources) -> int:
+    max_depth = 0
+    for source in sources:
+        witness_graph = witness_graph.to_undirected()
+        paths = nx.single_source_shortest_path(witness_graph, source)
+        path_lens = [len(path) for path in paths.values()]
+        depth = max(path_lens)
+        if depth > max_depth:
+            max_depth = depth
+    return max_depth

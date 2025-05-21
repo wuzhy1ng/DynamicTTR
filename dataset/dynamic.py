@@ -57,3 +57,11 @@ class DynamicTransNetwork:
             for row in csv.DictReader(f):
                 result[row['address']] = row['name_tag']
         return result
+
+    def get_case_transaction_count(self, case_name: str) -> int:
+        txhashes = set()
+        path = os.path.join(self.raw_path, case_name, 'all-tx.csv')
+        with open(path, 'r', encoding='utf-8') as f:
+            for row in csv.DictReader(f):
+                txhashes.add(row['hash'])
+        return len(txhashes)
