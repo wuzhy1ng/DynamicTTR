@@ -51,10 +51,14 @@ class DynamicTransNetwork:
         path = os.path.join(self.raw_path, case_name, 'all-address.csv')
         with open(path, 'r', encoding='utf-8') as f:
             for row in csv.DictReader(f):
+                if row['name_tag'] == '':
+                    continue
                 result[row['address']] = row['name_tag']
         path = os.path.join(self.raw_path, case_name, 'accounts-hacker.csv')
         with open(path, 'r', encoding='utf-8') as f:
             for row in csv.DictReader(f):
+                if row['name_tag'] == '':
+                    continue
                 result[row['address']] = row['name_tag']
         return result
 

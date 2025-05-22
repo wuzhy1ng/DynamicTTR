@@ -15,7 +15,7 @@ _NUM_TWO = decimal.Decimal('2')
 class DTTR:
     def __init__(
             self, source: List[str],
-            alpha: float = 0.1,
+            alpha: float = 0.15,
             epsilon: float = 1e-3,
             is_in_usd: bool = True,
     ):

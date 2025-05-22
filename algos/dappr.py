@@ -46,14 +46,7 @@ class DAPPR:
         :param attrs: the edge attributes, MUST include `value`
         :return:
         """
-        # filter out the edge
-        # if there is no mass from u or the value is zero
-        # see the invariant for details
-        value = attrs.get('value', '0')
-        if not self.p.get(u) or value == '0':
-            return
-        value = decimal.Decimal(value)
-        if value.is_zero():
+        if not self.p.get(u):
             return
 
         # add restart edges
@@ -62,24 +55,21 @@ class DAPPR:
             self._node2outsum[v] = self.epsilon
 
         # update mass and local push
-        nodes_push = self._update_mass(u, v, value)
+        nodes_push = self._update_mass(u, v)
         self._local_push(nodes_push)
 
-    def _update_mass(self, u: str, v: str, value: decimal.Decimal) -> Set:
-        if value < _NUM_ONE:
-            return set()
-
+    def _update_mass(self, u: str, v: str) -> Set:
         # init args
         d_out_old = self._node2outsum[u]
-        d_out_new = d_out_old + value
+        d_out_new = d_out_old + 1
         self._node2outsum[u] = d_out_new
         nodes_push = set()
 
         # update node u
-        pu_old = self.p[u]
+        pu_old = self.p.get(u, 0)
         self.p[u] *= d_out_new / d_out_old
         delta_ru = - (1 / self.alpha) * pu_old
-        delta_ru *= value / d_out_old
+        delta_ru *= 1 / d_out_old
         self.r[u] = self.r.get(u, _NUM_ZERO) + delta_ru
         if abs(self.r[u]) >= self.epsilon:
             nodes_push.add(u)
@@ -92,9 +82,9 @@ class DAPPR:
         # record the new edge
         edge_data = self._witness_graph.get_edge_data(u, v)
         if edge_data is None:
-            self._witness_graph.add_edge(u, v, value=value)
+            self._witness_graph.add_edge(u, v, value=1)
         else:
-            edge_data['value'] += value
+            edge_data['value'] += 1
         return nodes_push
 
     def _local_push(self, nodes_push: Set[Any]):
