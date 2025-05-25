@@ -10,7 +10,7 @@ class DIFFUSION(PushPopModel):
         self.gamma = gamma
         self.epsilon = epsilon
         self.grad_func = grad_func
-        self.p = {source: 0.0}
+        self.x = {source: 0.0}
         self.r = {source: 1.0}
         self.queue = [source]
 
@@ -18,15 +18,15 @@ class DIFFUSION(PushPopModel):
         if self.r.get(node, 0) <= self.epsilon:
             return
 
-        p_max = 1 - self.p.get(node, 0)
-        dp = p_max / 2
+        dx_max = 1 - self.x.get(node, 0)
+        dx = dx_max / 2
         is_source = (node == self.source)
 
-        ru_new = self._eval_residual(node, dp, is_source, edges)
+        ru_new = self._eval_residual(node, dx, is_source, edges)
 
         while ru_new > 1 - self.epsilon:
-            dp = (dp + p_max) / 2
-            ru_new = self._eval_residual(node, dp, is_source, edges)
+            dx = (dx + dx_max) / 2
+            ru_new = self._eval_residual(node, dx, is_source, edges)
 
         self.r[node] = ru_new
 
@@ -46,26 +46,25 @@ class DIFFUSION(PushPopModel):
             else:
                 weight /= sum_weight
 
-            delta = self.grad_func(self.p.get(neighbor, 0) - self.p.get(node, 0)) - \
-                    self.grad_func(self.p.get(neighbor, 0) - (self.p.get(node, 0) + dp))
+            delta = self.grad_func(self.x.get(neighbor, 0) - self.x.get(node, 0)) - \
+                    self.grad_func(self.x.get(neighbor, 0) - (self.x.get(node, 0) + dx))
 
             self.r[neighbor] = self.r.get(neighbor, 0) + weight * delta / self.gamma
 
-            if self.r[neighbor] > self.epsilon and neighbor not in self.p:
+            if self.r[neighbor] > self.epsilon and neighbor not in self.x:
                 self.queue.append(neighbor)
-                self.p[neighbor] = 0.0
+                self.x[neighbor] = 0.0
 
-        self.p[node] = self.p.get(node, 0) + dp
-
+        self.x[node] = self.x.get(node, 0) + dx
 
     def pop(self):
         if not self.queue:
             return None
         return {'node': self.queue.pop(0)}
 
-    def _eval_residual(self, node, dp, is_source, edges):
+    def _eval_residual(self, node, dx, is_source, edges):
         if is_source:
-            return self.grad_func(self.p.get(node, 0) + dp - 1)
+            return self.grad_func(self.x.get(node, 0) + dx - 1)
 
         out_edges = [e for e in edges if e.get('from') == node]
         successors = {}
@@ -84,6 +83,6 @@ class DIFFUSION(PushPopModel):
             else:
                 weight = 1.0 / len(successors) if successors else 0
 
-            rlt += self.grad_func(self.p.get(node, 0) + dp - self.p.get(neighbor, 0)) * weight
+            rlt += self.grad_func(self.x.get(node, 0) + dx - self.x.get(neighbor, 0)) * weight
 
         return -rlt / self.gamma
