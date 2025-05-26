@@ -2,7 +2,6 @@ from typing import Dict, Callable, Any
 import networkx as nx
 from algos.push_pop import PushPopModel
 
-
 class DIFFUSION(PushPopModel):
     def __init__(self, source, gamma: float = 0.1, epsilon: float = 1e-3,
                  grad_func: Callable = lambda _x: _x ** 3):
@@ -53,14 +52,15 @@ class DIFFUSION(PushPopModel):
 
             if self.r[neighbor] > self.epsilon and neighbor not in self.x:
                 self.queue.append(neighbor)
-                self.x[neighbor] = 0.0
 
         self.x[node] = self.x.get(node, 0) + dx
 
     def pop(self):
-        if not self.queue:
-            return None
-        return {'node': self.queue.pop(0)}
+        while self.queue:
+            node = self.queue.pop(0)
+            if self.r.get(node, 0.0) > self.epsilon:
+                return {'node': node, 'residual': self.r[node]}
+        return None
 
     def _eval_residual(self, node, dx, is_source, edges):
         if is_source:
@@ -78,11 +78,6 @@ class DIFFUSION(PushPopModel):
 
         rlt = 0
         for neighbor, weight in successors.items():
-            if sum_weight > 0:
-                weight /= sum_weight
-            else:
-                weight = 1.0 / len(successors) if successors else 0
-
-            rlt += self.grad_func(self.x.get(node, 0) + dx - self.x.get(neighbor, 0)) * weight
+            rlt += self.grad_func(self.x.get(node, 0) + dx - self.x.get(neighbor, 0)) * (weight / sum_weight)
 
         return -rlt / self.gamma
