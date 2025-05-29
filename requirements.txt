@@ -2,3 +2,5 @@ networkx
 pandas
 tqdm
 requests
+numpy
+scipy

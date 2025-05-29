@@ -58,8 +58,6 @@ def eval_case_from_pushpop(
     ):
         attr['value'] = float(attr['value'])
         graph.add_edge(u, v, **attr)
-        # if u not in vis and v not in vis:
-        #     continue
     source = sorted(list(sources))[0]
     aggregator = PushPopAggregator(
         source=source,
@@ -107,7 +105,7 @@ def eval_case_from_edge_arrive(
         targets.add(addr)
 
     # build the snapshot network from arrived edges
-    time_used = 0
+    time_used = time.time()
     model = model_cls(source=list(sources), **kwargs)
     graph = nx.MultiDiGraph()
     for u, v, attr in tqdm(
@@ -115,11 +113,10 @@ def eval_case_from_edge_arrive(
             desc=case_name,
     ):
         graph.add_edge(u, v, **attr)
-        s_time = time.time()
         model.edge_arrive(u, v, attr)
-        time_used += (time.time() - s_time)
     vis = list(model.p.keys())
     witness_graph = graph.subgraph(vis)
+    time_used = time.time() - time_used
 
     # collect the metrics and return the result
     depth = calc_depth(witness_graph, sources, vis)
@@ -172,7 +169,7 @@ def eval_case_from_transaction_arrive(
     txhash_sorted = [txhash for txhash, _ in txhash_sorted]
 
     # perform trans. arrive operations
-    time_used = 0
+    time_used = time.time()
     model = model_cls(source=list(sources), **kwargs)
     graph = nx.MultiDiGraph()
     for txhash in tqdm(
@@ -182,11 +179,10 @@ def eval_case_from_transaction_arrive(
         graph.add_edges_from(trans2edges[txhash])
         trans = nx.MultiDiGraph()
         trans.add_edges_from(trans2edges[txhash])
-        s_time = time.time()
         model.transaction_arrive(trans)
-        time_used += (time.time() - s_time)
     vis = list(model.p.keys())
     witness_graph = graph.subgraph(vis)
+    time_used = time.time() - time_used
 
     # collect the metrics and return the result
     depth = calc_depth(witness_graph, sources, vis)
@@ -250,7 +246,7 @@ def eval_method(
     print('Precision: {} (mean)'.format(avg_precision), list_precisions)
     print('FPR: {} (mean)'.format(avg_fpr), list_fprs)
     print('Num Nodes: {} (mean)'.format(size), list_num_nodes)
-    print('TPS: {} (mean)'.format(tps), list_tps)
+    print('TPS: {} (min)'.format(tps), list_tps)
 
     return avg_depth, avg_recall, avg_precision, avg_fpr, size, tps
 

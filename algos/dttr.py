@@ -18,12 +18,14 @@ class DTTR:
             alpha: float = 0.15,
             epsilon: float = 1e-3,
             is_in_usd: bool = True,
+            is_log_value: bool = True,
     ):
         assert 0 <= alpha <= 1
         self.alpha = decimal.Decimal(alpha)
         assert 0 < epsilon < 1
         self.epsilon = decimal.Decimal(epsilon)
         self.is_in_usd = is_in_usd
+        self.is_log_value = is_log_value
 
         self.r = dict()
         self.p = {s: _NUM_ONE for s in source}
@@ -119,11 +121,11 @@ class DTTR:
 
             # add restart edges
             if not self._node2outsum.get(v):
-                for s in self.source:
-                    self._witness_graph.add_edge(v, s, value=self.epsilon)
-                self._node2outsum[v] = self.epsilon * len(self.source)
-                # self._witness_graph.add_edge(v, v, value=self.epsilon)
-                # self._node2outsum[v] = self.epsilon
+                # for s in self.source:
+                #     self._witness_graph.add_edge(v, s, value=self.epsilon)
+                # self._node2outsum[v] = self.epsilon * len(self.source)
+                self._witness_graph.add_edge(v, v, value=self.epsilon)
+                self._node2outsum[v] = self.epsilon
 
             # update mass and local push
             nodes_push = self._update_mass(u, v, attr['value'])
@@ -146,9 +148,10 @@ class DTTR:
         return result
 
     def _update_mass(self, u: str, v: str, value: decimal.Decimal) -> Set:
-        if value < _NUM_ONE:
+        if value <= _NUM_ONE:
             return set()
-        value = value.log10()
+        if self.is_log_value:
+            value = value.log10()
 
         # init args
         d_out_old = self._node2outsum[u]

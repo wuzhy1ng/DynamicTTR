@@ -78,8 +78,6 @@ def coin_price(
                 'price': data['price'],
                 'decimals': data['decimals'],
             }
-        except requests.exceptions.SSLError as e:
-            print('error:', type(e), e, 'try again (%s / 2)' % (i + 1))
         except KeyError:
             # save to cache
             _cache_price[_cache_price_key] = {
@@ -92,6 +90,8 @@ def coin_price(
             ])
             _cache_file.flush()
             break
+        except Exception as e:
+            print('error:', type(e), e, 'try again (%s / 2)' % (i + 1))
     return {
         'price': -1,
         'decimals': -1,
