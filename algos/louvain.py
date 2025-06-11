@@ -366,23 +366,17 @@ class PushPopAggregator:
 
         # 更新最终社区映射（将元社区映射回原始节点）
         if current_level > 0:
-            # 从最后一层开始回溯
             final_community_map = {}
-            # 最后一层的社区映射
             last_level_map = model.current_community
 
-            # 逐层回溯到原始节点
             for meta_node, original_nodes in level_mappings[-1].items():
-                # 获取元节点在最后一层的社区
                 meta_community = last_level_map.get(meta_node, meta_node)
                 for node in original_nodes:
                     final_community_map[node] = meta_community
 
-            # 合并所有层的映射
             for level_map in reversed(level_mappings[:-1]):
                 temp_map = {}
                 for meta_node, original_nodes in level_map.items():
-                    # 获取元节点在下一层的社区
                     meta_community = final_community_map.get(meta_node, meta_node)
                     for node in original_nodes:
                         temp_map[node] = meta_community
