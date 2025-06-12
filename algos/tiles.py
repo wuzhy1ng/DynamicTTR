@@ -11,7 +11,6 @@ class TILES:
         ttl: float = float('inf'),  # 边过期时间（默认永久有效）
         observation_window: float = 86400  # 观测窗口（默认1天）
     ):
-        """初始化参数（支持源节点初始化，动态扩展社区）"""
         self.source = source
         self.ttl = ttl
         self.observation_window = observation_window
@@ -159,10 +158,25 @@ class TILES:
         pass
 
     @property
-    def active_nodes(self) -> Set[str]:
-        """获取所有活跃节点（核心+外围成员）"""
-        return set(self.node_to_communities.keys())
-
-    @property
     def p(self) -> Dict[str, int]:
-        return {node: 1 for node in self.active_nodes}
+        """返回与source节点在同一个社区的所有节点"""
+        if not self.source:
+            return {}
+
+        # 获取所有source节点所属的社区ID
+        source_communities = set()
+        for node in self.source:
+            if node in self.node_to_communities:
+                source_communities.update(self.node_to_communities[node])
+
+        # 若source节点没有所属社区，返回空字典
+        if not source_communities:
+            return {}
+
+        # 收集这些社区中的所有节点
+        same_community_nodes = set()
+        for comm_id in source_communities:
+            if comm_id in self.communities:
+                same_community_nodes.update(self.communities[comm_id])
+
+        return {node: 1 for node in same_community_nodes}
