@@ -13,6 +13,7 @@ from algos.dttr import DTTR
 from algos.haricut import Haircut
 from algos.poison import Poison
 from algos.push_pop import PushPopAggregator
+from algos.tiles import TILES
 from algos.ttr import TTRRedirect
 
 from utils.metrics import calc_depth, calc_recall, calc_size, calc_precision, calc_fpr
@@ -73,7 +74,7 @@ def eval_case_from_pushpop(
     precision = calc_precision(witness_graph, transits, targets)
     fpr = calc_fpr(witness_graph, transits, targets)
     num_nodes = calc_size(witness_graph)
-    tps = 1 / (time_used if time_used > 0 else 1)
+    tps = 1 / (time_used if time_used > 0 else 1e-5)
     return (depth, recall, precision, fpr, num_nodes, tps)
 
 
@@ -124,7 +125,7 @@ def eval_case_from_edge_arrive(
     precision = calc_precision(witness_graph, transits, targets)
     fpr = calc_fpr(witness_graph, transits, targets)
     num_nodes = calc_size(witness_graph)
-    tps = dataset.get_case_transaction_count(case_name) / (time_used if time_used > 0 else 1)
+    tps = dataset.get_case_transaction_count(case_name) / (time_used if time_used > 0 else 1e-5)
     return (depth, recall, precision, fpr, num_nodes, tps)
 
 
@@ -190,7 +191,7 @@ def eval_case_from_transaction_arrive(
     precision = calc_precision(witness_graph, transits, targets)
     fpr = calc_fpr(witness_graph, transits, targets)
     num_nodes = calc_size(witness_graph)
-    tps = dataset.get_case_transaction_count(case_name) / (time_used if time_used > 0 else 1)
+    tps = dataset.get_case_transaction_count(case_name) / (time_used if time_used > 0 else 1e-5)
     return (depth, recall, precision, fpr, num_nodes, tps)
 
 
@@ -257,24 +258,29 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     dataset = DynamicTransNetwork(raw_path=args.raw_path)
+    # eval_method(
+    #     dataset=dataset,
+    #     model_cls=DTTR,
+    #     eval_fn=eval_case_from_transaction_arrive,
+    # )
+    # eval_method(
+    #     dataset=dataset,
+    #     model_cls=DAPPR,
+    #     eval_fn=eval_case_from_edge_arrive,
+    # )
     eval_method(
         dataset=dataset,
-        model_cls=DTTR,
-        eval_fn=eval_case_from_transaction_arrive,
-    )
-    eval_method(
-        dataset=dataset,
-        model_cls=DAPPR,
+        model_cls=TILES,
         eval_fn=eval_case_from_edge_arrive,
     )
-    for model_cls in [
-        BFS, Poison,
-        Haircut,
-        APPR,
-        TTRRedirect
-    ]:
-        eval_method(
-            dataset=dataset,
-            model_cls=model_cls,
-            eval_fn=eval_case_from_pushpop
-        )
+    # for model_cls in [
+    #     BFS, Poison,
+    #     Haircut,
+    #     APPR,
+    #     TTRRedirect
+    # ]:
+    #     eval_method(
+    #         dataset=dataset,
+    #         model_cls=model_cls,
+    #         eval_fn=eval_case_from_pushpop
+    #     )

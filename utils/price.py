@@ -17,7 +17,10 @@ _is_cache_exists = os.path.exists(_cache_fn)
 if _is_cache_exists:
     with open(_cache_fn, 'r', encoding='utf-8', newline='\n') as f:
         for row in csv.DictReader(f):
-            key = (row['platform'], row['name'], int(row['timestamp']))
+            key = (
+                row['platform'], row['name'],
+                int(int(row['timestamp']) / 100) * 100
+            )
             _cache_price[key] = {
                 'price': float(row['price']),
                 'decimals': int(row['decimals']),
@@ -38,7 +41,7 @@ def coin_price(
 ) -> Dict:
     # query the cache
     coins = '%s:%s' % (platform, name)
-    _cache_price_key = (platform, name, timestamp)
+    _cache_price_key = (platform, name, int(timestamp / 100) * 100)
     data = _cache_price.get(_cache_price_key)
     if data is not None:
         return data
@@ -108,7 +111,7 @@ def get_usd_value(
         name=contract_address,
         timestamp=timestamp
     )
-    if data['price'] < 0:
+    if data['decimals'] < 0:
         return '0'
     value = decimal.Decimal(value)
     token_decimals = decimal.Decimal(data['decimals'])
@@ -116,3 +119,11 @@ def get_usd_value(
     price = decimal.Decimal(data['price'])
     value = value * price
     return str(value)
+
+
+if __name__ == '__main__':
+    print(get_usd_value(
+        contract_address='0x66761fa41377003622aee3c7675fc7b5c1c2fac5',
+        value='1.2363200046968E+22',
+        timestamp=1639265618
+    ))

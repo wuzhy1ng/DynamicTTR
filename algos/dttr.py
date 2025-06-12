@@ -38,6 +38,7 @@ class DTTR:
             (s, s, {'value': self.epsilon})
             for s in self.source
         ])
+        # self._edge_weights = list()
 
         self._pool = ThreadPoolExecutor(max_workers=max(os.cpu_count() // 2, 1))
 
@@ -88,7 +89,7 @@ class DTTR:
             return
 
         # transform the value to usd price
-        if self.is_in_usd and len([e[2]['contractAddress'] for e in edges]) > 1:
+        if self.is_in_usd:
             params = [
                 (attr['contractAddress'], attr['value'], attr['timeStamp'])
                 for _, _, attr in edges
@@ -148,10 +149,10 @@ class DTTR:
         return result
 
     def _update_mass(self, u: str, v: str, value: decimal.Decimal) -> Set:
-        if value <= _NUM_ONE:
-            return set()
         if self.is_log_value:
+            value = value + _NUM_ONE
             value = value.log10()
+            # self._edge_weights.append(float(value))
 
         # init args
         d_out_old = self._node2outsum[u]
