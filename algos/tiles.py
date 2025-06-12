@@ -40,19 +40,27 @@ class TILES:
     def _is_core_member(self, node: str, community_nodes: Set[str]) -> bool:
         """
         判断节点是否为核心成员（存在有向三角形结构）
-        条件：社区成员≥3且存在相邻节点对间的双向/单向边
         """
         if len(community_nodes) < 3:
             return False
-        subgraph = self.digraph.subgraph(community_nodes)
+
         try:
-            successors = set(subgraph.successors(node))
+            neighbors = set(self.digraph.successors(node)) & community_nodes
         except NetworkXError:
             return False
-        for v in successors:
-            for z in successors:
-                if v != z and (subgraph.has_edge(v, z) or subgraph.has_edge(z, v)):
-                    return True
+
+        if len(neighbors) < 2:
+            return False  # 至少需要2个邻居才可能形成三角形
+
+        # 取第一个邻居的邻居集合，与剩余邻居求交集（存在交集则形成三角形）
+        first_neighbor = next(iter(neighbors))
+        first_neighbor_neighbors = set(self.digraph.successors(first_neighbor)) & community_nodes
+
+        # 检查是否有其他邻居在first_neighbor的邻居中
+        for neighbor in neighbors:
+            if neighbor != first_neighbor and neighbor in first_neighbor_neighbors:
+                return True
+
         return False
 
     def edge_arrive(self, from_node: str, to_node: str, edge_attrs: Dict):
