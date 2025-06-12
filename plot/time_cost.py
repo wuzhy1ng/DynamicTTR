@@ -1,73 +1,265 @@
-import numpy as np
-import matplotlib.pyplot as plt
-from scipy.interpolate import make_interp_spline
-from scipy.optimize import curve_fit
+import argparse
+import csv
+import os.path
+import time
+from typing import Any, List, Dict
 
-tx_counts = [
-    17893, 334, 237, 195, 672, 7439, 46,
-    421, 24, 4741, 510, 1306, 111, 2806,
-    3371, 758, 59550, 2401, 51,
-    1805890, 48, 2923, 251
-]
-time_cost = [36074.19420322458, 35526.01972966804, 78148.58867924528, 20921.629959327758, 15549.885733200927,
-             35159.39034603371, 15333.226098704601, 9666.887384008978, 10506.554221897506, 19011.175482373368,
-             4877.987412204689, 14884.45168320114, 12802.280811747236, 49932.82601261768, 11944.738395929377,
-             30971.762885894925, 35140.96977621815, 30743.495674154216, 10534.300403821531, 53091.009572662064,
-             23981.726265634305, 27642.38499278499, 22783.78392884195]
-# time_cost = [
-#     1.547260893767986, 8.19416056968146, 58.32145389824381, 143.21384914808618, 13.570329915652632, 15.16296657809591,
-#     166.22296199421393, 12.266987991272762, 316.8621288811664, 4.454736824217398, 12.704660764102393,
-#     10.076139729640778, 125.01651266766021, 4.239968460317621, 4.78587117879764, 29.006452326779577, 2.0229511628232255,
-#     50.935745946930595, 165.8876760006328, 0.03260828462192183, 63.2443794387732, 12.541987494804452, 62.25866496459796
-# ]
+import networkx as nx
+from tqdm import tqdm
+
+from algos.appr import APPR
+from algos.bfs import BFS
+from algos.dappr import DAPPR
+from algos.dttr import DTTR
+from algos.haricut import Haircut
+from algos.poison import Poison
+from algos.push_pop import PushPopAggregator
+from algos.tiles import TILES
+from algos.ttr import TTRRedirect
+from dataset.dynamic import DynamicTransNetwork
+from settings import PROJECT_PATH
 
 
-# 转换为NumPy数组
-tx_counts = np.array(tx_counts)
-time_cost = np.array(time_cost)
+def eval_tps_from_pushpop(
+        dataset: DynamicTransNetwork,
+        case_name: str,
+        model_cls: Any,
+        record_points: List[float],
+        transaction_cnt: int,
+        **kwargs
+) -> List:
+    """
+    Perform the evaluation with the `PushPopModel`.
 
-# 按 tx_counts 排序
-sort_idx = np.argsort(tx_counts)
-x = tx_counts[sort_idx]
-y = time_cost[sort_idx]
+    :param dataset: the dynamic network
+    :param case_name: the tracing case name
+    :param model_cls: the class of the PushPopModel method
+    :return: the collected evaluating metrics
+    """
+    results = list()
 
-# 关键改进 1：对数变换处理量级差异
-log_x = np.log(x)  # 对自变量取对数
+    # init the source
+    sources = set()
+    addr2label = dataset.get_case_labels(case_name)
+    for addr, label in addr2label.items():
+        if label == 'ml_transit_0':
+            sources.add(addr)
 
-# 关键改进 2：使用更合理的非线性函数
-def rational_func(x, a, b, c, d):
-    """ (a + b*x) / (1 + c*x + d*x**2) """
-    return (a + b * x) / (1 + c * x + d * x ** 2)
+    # build the snapshot network from arrived edges
+    # the loading time should be recorded,
+    # because the pushpop models are offline algorithms
+    point_idx = 0
+    graph = nx.MultiDiGraph()
+    loading_time = time.time()
+    data = [(u, v, attr) for u, v, attr in dataset.iter_edge_arrive(case_name)]
+    loading_time = time.time() - loading_time
+
+    # run the model
+    processor = tqdm(iterable=data, desc=str(model_cls), total=len(data))
+    for u, v, attr in processor:
+        attr['value'] = float(attr['value'])
+        graph.add_edge(u, v, **attr)
+        source = sorted(list(sources))[0]
+        aggregator = PushPopAggregator(
+            source=source,
+            model_cls=model_cls,
+        )
+        aggregator.execute(graph)
+
+        process = (processor.n + 1) / processor.total
+        current_speed = processor.format_dict["rate"]
+        if current_speed is None:
+            continue
+        current_speed = 1 / current_speed
+        current_speed += loading_time * process
+        current_speed = 1 / current_speed
+        current_speed *= (len(data) / transaction_cnt)
+        if record_points[point_idx] <= process:
+            results.append(current_speed)
+            print(model_cls, record_points[point_idx], current_speed)
+            point_idx += 1
+        if current_speed < 1:
+            return results + [1 for _ in range(len(record_points) - point_idx)]
+        attr['value'] = float(attr['value'])
+    return results
 
 
-# 关键改进 3：加权拟合（抑制超大值影响）
-weights = 1 / np.sqrt(x)  # 给中小值更高权重
+def eval_tps_from_edge_arrive(
+        dataset: DynamicTransNetwork,
+        case_name: str,
+        model_cls: Any,
+        record_points: List[float],
+        transaction_cnt: int,
+        **kwargs
+) -> List:
+    """
+    Perform the evaluation with the edge arrived method.
 
-params, _ = curve_fit(
-    rational_func, log_x, y,
-    p0=[1, 1, 0.1, 0.1],
-    maxfev=5000,
-    sigma=weights
-)
+    :param dataset: the dynamic network
+    :param case_name: the tracing case name
+    :param model_cls: the class of the edge arrived method
+    :return: the collected evaluating metrics
+    """
+    results = list()
 
-# 生成平滑曲线
-x_new = np.logspace(np.log10(x.min()), np.log10(x.max()), 500)
-log_x_new = np.log(x_new)
-y_new = rational_func(log_x_new, *params)
+    # init the source
+    sources = set()
+    addr2label = dataset.get_case_labels(case_name)
+    for addr, label in addr2label.items():
+        if label == 'ml_transit_0':
+            sources.add(addr)
 
-# 绘图
-plt.figure(figsize=(12, 7))
-plt.scatter(x, y, color='darkorange', label='原始数据', zorder=3)
-plt.plot(x_new, y_new, 'steelblue', linewidth=2.5, label='拟合曲线')
-plt.xscale('log')  # 对数坐标显示
-plt.xlabel("tx_counts (对数坐标)", fontsize=12)
-plt.ylabel("time_cost", fontsize=12)
-plt.yscale('log')
-plt.title("tx_counts 与 time_cost 的非线性关系（改进拟合）", pad=15)
-plt.grid(True, which='both', linestyle='--', alpha=0.5)
-plt.legend()
-plt.show()
+    # build the snapshot network from arrived edges
+    point_idx = 0
+    model = model_cls(source=list(sources), **kwargs)
+    data = [(u, v, attr) for u, v, attr in dataset.iter_edge_arrive(case_name)]
+    processor = tqdm(iterable=data, desc=str(model_cls), total=len(data), unit='it')
+    for u, v, attr in processor:
+        model.edge_arrive(u, v, attr)
+        process = (processor.n + 1) / processor.total
+        current_speed = processor.format_dict["rate"]
+        current_speed = (1 / current_speed)
+        current_speed *= (len(data) / transaction_cnt)
+        if current_speed is None:
+            continue
+        if record_points[point_idx] <= process:
+            results.append(current_speed)
+            point_idx += 1
+        if current_speed < 1:
+            return results + [1 for _ in range(len(record_points) - point_idx)]
 
-# 输出函数关系
-print(f"拟合函数：")
-print(f"time_cost = ({params[0]:.2f} + {params[1]:.2f}*ln(x)) / (1 + {params[2]:.2f}*ln(x) + {params[3]:.2f}*ln(x)^2)")
+    return results
+
+
+def eval_tps_from_transaction_arrive(
+        dataset: DynamicTransNetwork,
+        case_name: str,
+        model_cls: Any,
+        record_points: List[float],
+        **kwargs,
+) -> List:
+    """
+    Perform the evaluation with the transaction arrived method.
+
+    :param dataset: the dynamic network
+    :param case_name: the tracing case name
+    :param model_cls: the class of the transaction arrived method
+    :return: the collected evaluating metrics
+    """
+    results = list()
+
+    # init the source
+    sources = set()
+    addr2label = dataset.get_case_labels(case_name)
+    for addr, label in addr2label.items():
+        if label == 'ml_transit_0':
+            sources.add(addr)
+
+    # build the time-ordered trans. from arrived edges
+    trans2time, trans2edges = dict(), dict()
+    for u, v, attr in dataset.iter_edge_arrive(case_name):
+        txhash = attr['hash']
+        if trans2edges.get(txhash) is None:
+            trans2edges[txhash] = list()
+        trans2edges[txhash].append((u, v, attr))
+        if trans2time.get(txhash):
+            continue
+        trans2time[txhash] = attr['timeStamp']
+    txhash_sorted = sorted(list(trans2time.items()), key=lambda x: x[1])
+    txhash_sorted = [txhash for txhash, _ in txhash_sorted]
+
+    # perform trans. arrive operations
+    point_idx = 0
+    model = model_cls(source=list(sources), **kwargs)
+    processor = tqdm(
+        iterable=txhash_sorted,
+        desc=str(model_cls),
+        total=len(txhash_sorted),
+        unit='it'
+    )
+    for txhash in processor:
+        process = (processor.n + 1) / processor.total
+        current_speed = processor.format_dict["rate"]
+        if current_speed is None:
+            continue
+        if record_points[point_idx] <= process:
+            results.append(current_speed)
+            point_idx += 1
+        if current_speed < 1:
+            return results + [1 for _ in range(len(record_points) - point_idx)]
+
+        # run the model
+        trans = nx.MultiDiGraph()
+        trans.add_edges_from(trans2edges[txhash])
+        model.transaction_arrive(trans)
+    return results
+
+
+def eval_methods(
+        dataset: DynamicTransNetwork,
+        case_name: str,
+        record_points: List[float],
+) -> Dict:
+    results = dict()
+    transaction_cnt = dataset.get_case_transaction_count(case_name)
+    # results['DTTR'] = eval_tps_from_transaction_arrive(
+    #     dataset=dataset,
+    #     case_name=case_name,
+    #     model_cls=DTTR,
+    #     record_points=record_points,
+    # )
+    results['DAPPR'] = eval_tps_from_edge_arrive(
+        dataset=dataset,
+        case_name=case_name,
+        model_cls=DAPPR,
+        record_points=record_points,
+        transaction_cnt=transaction_cnt,
+    )
+    results['TILES'] = eval_tps_from_edge_arrive(
+        dataset=dataset,
+        case_name=case_name,
+        model_cls=TILES,
+        record_points=record_points,
+        transaction_cnt=transaction_cnt,
+    )
+    for model_cls in [
+        BFS, Poison, Haircut,
+        APPR, TTRRedirect
+    ]:
+        results[model_cls.__name__] = eval_tps_from_pushpop(
+            dataset=dataset,
+            case_name=case_name,
+            model_cls=model_cls,
+            record_points=record_points,
+            transaction_cnt=transaction_cnt,
+        )
+
+    # save the results to cache
+    cache_fn = os.path.join(PROJECT_PATH, 'cache', 'time_cost.csv')
+    with open(cache_fn, 'w', encoding='utf-8', newline='\n') as f:
+        writer = csv.writer(f)
+        for method, tps in results.items():
+            writer.writerow([method] + tps)
+    return results
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--raw_path', type=str, required=True)
+    parser.add_argument('--case', type=str, default='PlusTokenPonzi')
+    args = parser.parse_args()
+    dataset = DynamicTransNetwork(raw_path=args.raw_path)
+    record_points = [0.05 * i for i in range(1, 20 + 1)]
+
+    # load the cached results
+    method2tps = dict()
+    cache_fn = os.path.join(PROJECT_PATH, 'cache', 'time_cost.csv')
+    if not os.path.exists(cache_fn):
+        results = eval_methods(dataset, args.case, record_points)
+    with open(cache_fn, 'r', encoding='utf-8') as f:
+        for row in csv.reader(f):
+            method2tps[row[0]] = row[1:]
+
+    # print the results
+    for method, tps in method2tps.items():
+        print(f"{method}: {', '.join(tps)}")
