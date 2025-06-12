@@ -166,8 +166,7 @@ class TILES:
         # 获取所有source节点所属的社区ID
         source_communities = set()
         for node in self.source:
-            if node in self.node_to_communities:
-                source_communities.update(self.node_to_communities[node])
+            source_communities.update(self.node_to_communities[node])
 
         # 若source节点没有所属社区，返回空字典
         if not source_communities:
@@ -176,7 +175,6 @@ class TILES:
         # 收集这些社区中的所有节点
         same_community_nodes = set()
         for comm_id in source_communities:
-            if comm_id in self.communities:
-                same_community_nodes.update(self.communities[comm_id])
+            same_community_nodes.update(self.communities[comm_id])
 
         return {node: 1 for node in same_community_nodes}
