@@ -10,21 +10,29 @@ class LOUVAIN(PushPopModel):
         super().__init__(source)
         self.source = source
         self.visited: Set[str] = set()
+        self.processed: Set[str] = set()
         self.community_nodes: Set[str] = set()
         self.process_queue: List[Dict] = []
+        self.queued_nodes: Set[str] = set()
         self.current_community: int = None
         self.graph: nx.MultiDiGraph = nx.MultiDiGraph()
         self.undirected_graph: nx.Graph = nx.Graph()
+        # 新增双阈值控制变量
+        self.edges_added = 0           # push新增的边数
+        self.community_update_count = 0  # 累计需要push次数
 
     def push(self, node: str, edges: List[Dict], **kwargs) -> None:
 
+        if node in self.visited:
+            return
+
         self.visited.add(node)
+        self.edges_added = 0  # 重置本次新增边数计数器
 
         for edge in edges:
             u = edge['from']
             v = edge['to']
             value = float(edge.get('value', 0))
-
             if u == v:
                 continue
 
@@ -35,21 +43,31 @@ class LOUVAIN(PushPopModel):
                 self.undirected_graph[u][v]['weight'] = current_weight + value
             else:
                 self.undirected_graph.add_edge(u, v, weight=value)
+            self.edges_added += 1  # 统计新增边数
 
-        if node == self.source or not self.community_nodes:
+        if self.edges_added >= 5 or self.community_update_count >= 10:
             self._compute_community()
+            self.community_update_count = 0  # 重置累计次数
+        else:
+            self.community_update_count += 1  # 增加累计次数
 
-            self.process_queue = [
-                {'node': n} for n in self.community_nodes
-                if n not in self.visited and n != self.source
-            ]
+        new_nodes = [
+            {'node': n} for n in self.community_nodes
+            if n not in self.processed and
+               n != self.source and
+               n not in self.queued_nodes
+        ]
+
+        self.process_queue.extend(new_nodes)
+        self.queued_nodes.update({item['node'] for item in self.process_queue})
 
     def pop(self) -> Dict[str, Any]:
         if not self.process_queue:
             return None
 
-        next_node_info = self.process_queue.pop(0)
-        return next_node_info
+        next_node = self.process_queue.pop(0)
+        self.processed.add(next_node['node'])
+        return next_node
 
     def _compute_community(self) -> None:
         if not self.undirected_graph.nodes:
@@ -62,10 +80,8 @@ class LOUVAIN(PushPopModel):
             random_state=42
         )
 
-        # 确定源节点所在的社区
         source_community = partition.get(self.source)
         if source_community is not None:
-            # 收集属于源节点所在的社区的所有节点
             self.community_nodes = {
                 node for node, comm in partition.items()
                 if comm == source_community
