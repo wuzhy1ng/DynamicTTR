@@ -12,14 +12,18 @@ if __name__ == '__main__':
     # Collect source and transit addresses
     sources = set()
     transits = set()
+    services = set()
     pattern = r"ml_transit_.*?"
     for case_name in dataset.get_case_names():
         addr2label = dataset.get_case_labels(case_name)
         for addr, label in addr2label.items():
             if label == 'ml_transit_0':
                 sources.add(addr)
-            if re.match(pattern, str(label)):
+            elif re.match(pattern, str(label)):
                 transits.add(addr)
+            else:
+                services.add(addr)
+
 
     # Count token transfers and unique token contracts
     token_transfer_cnt = 0
@@ -31,5 +35,6 @@ if __name__ == '__main__':
 
     print('Total number of sources:', len(sources))
     print('Total number of transits:', len(transits))
+    print('Total number of services / others:', len(services))
     print('Total number of token transfers:', token_transfer_cnt)
     print('Total number of unique token contracts:', len(token_contracts))

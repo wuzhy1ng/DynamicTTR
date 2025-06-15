@@ -19,17 +19,17 @@ if __name__ == '__main__':
     writer.writerow(['type', 'depth', 'recall', 'precision', 'fpr', 'size', 'tps'])
 
     # w/o uni-price
-    # avg_depth, avg_recall, avg_precision, avg_fpr, size, tps = eval_method(
-    #     dataset=dataset,
-    #     model_cls=DTTR,
-    #     eval_fn=eval_case_from_transaction_arrive,
-    #     is_in_usd=False,
-    # )
-    # writer.writerow([
-    #     'w/o uni-price', avg_depth,
-    #     avg_recall, avg_precision, avg_fpr,
-    #     size, tps,
-    # ])
+    avg_depth, avg_recall, avg_precision, avg_fpr, size, tps = eval_method(
+        dataset=dataset,
+        model_cls=DTTR,
+        eval_fn=eval_case_from_transaction_arrive,
+        is_in_usd=False,
+    )
+    writer.writerow([
+        'w/o uni-price', avg_depth,
+        avg_recall, avg_precision, avg_fpr,
+        size, tps,
+    ])
 
     # w/o swap reduction
     avg_depth, avg_recall, avg_precision, avg_fpr, size, tps = eval_method(
