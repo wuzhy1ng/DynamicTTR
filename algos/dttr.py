@@ -18,6 +18,7 @@ class DTTR:
             alpha: float = 0.15,
             epsilon: float = 1e-3,
             is_in_usd: bool = True,
+            is_reduce_swap: bool = True,
             is_log_value: bool = True,
     ):
         assert 0 <= alpha <= 1
@@ -25,6 +26,7 @@ class DTTR:
         assert 0 < epsilon < 1
         self.epsilon = decimal.Decimal(epsilon)
         self.is_in_usd = is_in_usd
+        self.is_reduce_swap = is_reduce_swap
         self.is_log_value = is_log_value
 
         self.r = dict()
@@ -41,40 +43,6 @@ class DTTR:
         # self._edge_weights = list()
 
         self._pool = ThreadPoolExecutor(max_workers=max(os.cpu_count() // 2, 1))
-
-    def edge_arrive(self, u: Any, v: Any, attrs: Dict):
-        """
-        Update the witness graph if edge arrived.
-
-        :param u: the node from
-        :param v: the node to
-        :param attrs: the edge attributes, MUST include `value`
-        :return:
-        """
-        # filter out the edge
-        # if there is no mass from u or the value is zero
-        # see the invariant for details
-        value = attrs.get('value', '0')
-        if not self.p.get(u) or value == '0':
-            return
-        if self.is_in_usd:
-            value = get_usd_value(
-                contract_address=attrs['contractAddress'],
-                value=value,
-                timestamp=attrs['timeStamp'],
-            )
-        value = decimal.Decimal(value)
-        if value.is_zero():
-            return
-
-        # add restart edges
-        if not self._node2outsum.get(v):
-            self._witness_graph.add_edge(v, v, value=self.epsilon)
-            self._node2outsum[v] = self.epsilon
-
-        # update mass and local push
-        nodes_push = self._update_mass(u, v, value)
-        self._local_push(nodes_push)
 
     def transaction_arrive(self, g: nx.MultiDiGraph):
         # filter out the zero value edges
@@ -112,8 +80,9 @@ class DTTR:
             attr['value'] = decimal.Decimal(attr['value'])
         nonzero_g = nx.MultiDiGraph()
         nonzero_g.add_edges_from(edges)
-        nodes = self._det_swap_nodes(nonzero_g)
-        nonzero_g.remove_nodes_from(nodes)
+        if self.is_reduce_swap:
+            nodes = self._det_swap_nodes(nonzero_g)
+            nonzero_g.remove_nodes_from(nodes)
 
         # update mass and local push
         for u, v, attr in nonzero_g.edges(data=True):

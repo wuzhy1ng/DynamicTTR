@@ -1,9 +1,11 @@
 import argparse
 import csv
+import math
 import os.path
 import time
 from typing import Any, List, Dict
 
+import matplotlib.pyplot as plt
 import networkx as nx
 from tqdm import tqdm
 
@@ -64,22 +66,21 @@ def eval_tps_from_pushpop(
             source=source,
             model_cls=model_cls,
         )
+        time_used = time.time()
         aggregator.execute(graph)
+        time_used = time.time() - time_used
 
-        process = (processor.n + 1) / processor.total
-        current_speed = processor.format_dict["rate"]
-        if current_speed is None:
-            continue
+        current_speed = time_used + loading_time * (processor.n + 1) / len(data)
         current_speed = 1 / current_speed
-        current_speed += loading_time * process
-        current_speed = 1 / current_speed
-        current_speed *= (len(data) / transaction_cnt)
-        if record_points[point_idx] <= process:
+        current_speed *= (transaction_cnt / len(data))
+        if record_points[point_idx] <= processor.n + 1:
             results.append(current_speed)
             print(model_cls, record_points[point_idx], current_speed)
             point_idx += 1
+        if point_idx >= len(record_points):
+            break
         if current_speed < 1:
-            return results + [1 for _ in range(len(record_points) - point_idx)]
+            return results + [1 for _ in range(len(record_points) - point_idx - 1)]
         attr['value'] = float(attr['value'])
     return results
 
@@ -116,18 +117,17 @@ def eval_tps_from_edge_arrive(
     processor = tqdm(iterable=data, desc=str(model_cls), total=len(data), unit='it')
     for u, v, attr in processor:
         model.edge_arrive(u, v, attr)
-        process = (processor.n + 1) / processor.total
+        process = processor.n + 1
         current_speed = processor.format_dict["rate"]
-        current_speed = (1 / current_speed)
-        current_speed *= (len(data) / transaction_cnt)
         if current_speed is None:
             continue
+        current_speed *= (transaction_cnt / len(data))
         if record_points[point_idx] <= process:
             results.append(current_speed)
+            print(model_cls, record_points[point_idx], current_speed)
             point_idx += 1
-        if current_speed < 1:
-            return results + [1 for _ in range(len(record_points) - point_idx)]
-
+        if point_idx >= len(record_points):
+            break
     return results
 
 
@@ -178,20 +178,20 @@ def eval_tps_from_transaction_arrive(
         unit='it'
     )
     for txhash in processor:
-        process = (processor.n + 1) / processor.total
+        trans = nx.MultiDiGraph()
+        trans.add_edges_from(trans2edges[txhash])
+        model.transaction_arrive(trans)
+        process = processor.n + 1
         current_speed = processor.format_dict["rate"]
         if current_speed is None:
             continue
         if record_points[point_idx] <= process:
             results.append(current_speed)
+            print(model_cls, record_points[point_idx], current_speed)
             point_idx += 1
-        if current_speed < 1:
-            return results + [1 for _ in range(len(record_points) - point_idx)]
+        # if current_speed < 1:
+        #     return results + [1 for _ in range(len(record_points) - point_idx)]
 
-        # run the model
-        trans = nx.MultiDiGraph()
-        trans.add_edges_from(trans2edges[txhash])
-        model.transaction_arrive(trans)
     return results
 
 
@@ -202,19 +202,27 @@ def eval_methods(
 ) -> Dict:
     results = dict()
     transaction_cnt = dataset.get_case_transaction_count(case_name)
-    # results['DTTR'] = eval_tps_from_transaction_arrive(
-    #     dataset=dataset,
-    #     case_name=case_name,
-    #     model_cls=DTTR,
-    #     record_points=record_points,
-    # )
-    results['DAPPR'] = eval_tps_from_edge_arrive(
+    results['DTTR'] = eval_tps_from_transaction_arrive(
+        dataset=dataset,
+        case_name=case_name,
+        model_cls=DTTR,
+        record_points=record_points,
+    )
+    print(','.join(['DTTR', *[
+        str(n) for n in results['DTTR']
+    ]]))
+
+    results['LazyFwd'] = eval_tps_from_edge_arrive(
         dataset=dataset,
         case_name=case_name,
         model_cls=DAPPR,
         record_points=record_points,
         transaction_cnt=transaction_cnt,
     )
+    print(','.join(['LazyFwd', *[
+        str(n) for n in results['LazyFwd']
+    ]]))
+
     results['TILES'] = eval_tps_from_edge_arrive(
         dataset=dataset,
         case_name=case_name,
@@ -222,6 +230,10 @@ def eval_methods(
         record_points=record_points,
         transaction_cnt=transaction_cnt,
     )
+    print(','.join(['TILES', *[
+        str(n) for n in results['TILES']
+    ]]))
+
     for model_cls in [
         BFS, Poison, Haircut,
         APPR, TTRRedirect
@@ -233,14 +245,41 @@ def eval_methods(
             record_points=record_points,
             transaction_cnt=transaction_cnt,
         )
+        print(','.join([model_cls.__name__, *[
+            str(n) for n in results[model_cls.__name__]
+        ]]))
 
-    # save the results to cache
-    cache_fn = os.path.join(PROJECT_PATH, 'cache', 'time_cost.csv')
-    with open(cache_fn, 'w', encoding='utf-8', newline='\n') as f:
-        writer = csv.writer(f)
-        for method, tps in results.items():
-            writer.writerow([method] + tps)
     return results
+
+
+def plot(record_points: List[float], transaction_cnt: int):
+    method2tps = dict()
+    fn = os.path.join(PROJECT_PATH, 'cache', 'time_cost.csv')
+    with open(fn, 'r') as f:
+        for row in csv.reader(f):
+            nums = [float(n) for n in row[1:]]
+            method2tps[row[0]] = nums
+
+    # plot the results
+    linestyles = ['-', '--', '-.', ':']
+    makers = ['o', 's', '^']
+    plt.figure(dpi=768)
+    for i, method in enumerate(method2tps):
+        tpss = method2tps[method]
+        plt.plot(
+            record_points, tpss, label=method,
+            linestyle=linestyles[i % len(linestyles)],
+            marker=makers[i % len(makers)],
+        )
+    plt.xscale('log')
+    plt.yscale('log')
+    plt.legend(prop={'size': 14}, loc='lower right')
+    plt.tick_params(labelsize=16)
+    plt.xlabel('#Transaction', fontsize=16)
+    plt.ylabel('TPS', fontsize=16)
+    plt.tight_layout()
+    plt.grid()
+    plt.show()
 
 
 if __name__ == '__main__':
@@ -249,17 +288,18 @@ if __name__ == '__main__':
     parser.add_argument('--case', type=str, default='PlusTokenPonzi')
     args = parser.parse_args()
     dataset = DynamicTransNetwork(raw_path=args.raw_path)
-    record_points = [0.05 * i for i in range(1, 20 + 1)]
+    transaction_cnt = dataset.get_case_transaction_count(args.case)
+    # record_points = [0.05 * i for i in range(1, 20 + 1)]
+    record_points = [
+        10 ** ((0.1 * i) * math.log10(transaction_cnt))
+        for i in range(1, 10 + 1)
+    ]
+    record_points[-1] = transaction_cnt
+    print('record_points:', record_points)
 
     # load the cached results
-    method2tps = dict()
-    cache_fn = os.path.join(PROJECT_PATH, 'cache', 'time_cost.csv')
-    if not os.path.exists(cache_fn):
-        results = eval_methods(dataset, args.case, record_points)
-    with open(cache_fn, 'r', encoding='utf-8') as f:
-        for row in csv.reader(f):
-            method2tps[row[0]] = row[1:]
+    # method2tps = dict()
+    # results = eval_methods(dataset, args.case, record_points)
 
     # print the results
-    for method, tps in method2tps.items():
-        print(f"{method}: {', '.join(tps)}")
+    plot(record_points, transaction_cnt)
