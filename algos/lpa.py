@@ -1,25 +1,24 @@
-from typing import Any, Dict, List, Set, Tuple
+from typing import Any, Dict, List, Set
 import networkx as nx
-import community.community_louvain as community_louvain
+from networkx.algorithms.community import asyn_lpa_communities as lpa
 
 from algos.push_pop import PushPopModel
 
 
-class LOUVAIN(PushPopModel):
+class LPA(PushPopModel):
     def __init__(self, source: str):
         super().__init__(source)
         self.source = source
         self.visited: Set[str] = set()
         self.processed: Set[str] = set()
-        self.community_nodes: Set[str] = set()
+        self.community_nodes: Set[str] = {source}
         self.process_queue: List[Dict] = []
         self.queued_nodes: Set[str] = set()
-        self.current_community: int = None
         self.graph: nx.MultiDiGraph = nx.MultiDiGraph()
         self.undirected_graph: nx.Graph = nx.Graph()
-        # 新增双阈值控制变量
-        self.edges_added = 0           # push新增的边数
-        self.community_update_count = 0  # 累计需要push次数
+
+        self.edges_added = 0
+        self.community_update_count = 0
 
     def push(self, node: str, edges: List[Dict], **kwargs) -> None:
 
@@ -27,7 +26,7 @@ class LOUVAIN(PushPopModel):
             return
 
         self.visited.add(node)
-        self.edges_added = 0  # 重置本次新增边数计数器
+        self.edges_added = 0
 
         for edge in edges:
             u = edge['from']
@@ -43,8 +42,9 @@ class LOUVAIN(PushPopModel):
                 self.undirected_graph[u][v]['weight'] = current_weight + value
             else:
                 self.undirected_graph.add_edge(u, v, weight=value)
-            self.edges_added += 1  # 统计新增边数
+            self.edges_added += 1
 
+        # 双阈值控制LPA执行频率
         if self.edges_added >= 5 or self.community_update_count >= 10:
             self._compute_community()
             self.community_update_count = 0  # 重置累计次数
@@ -57,33 +57,34 @@ class LOUVAIN(PushPopModel):
                n != self.source and
                n not in self.queued_nodes
         ]
-
         self.process_queue.extend(new_nodes)
         self.queued_nodes.update({item['node'] for item in self.process_queue})
 
     def pop(self) -> Dict[str, Any]:
+
         if not self.process_queue:
             return None
 
         next_node = self.process_queue.pop(0)
-        self.processed.add(next_node['node'])
+        node_id = next_node['node']
+        self.processed.add(node_id)
         return next_node
 
     def _compute_community(self) -> None:
+        """
+        执行LPA算法更新社区节点
+        """
         if not self.undirected_graph.nodes:
             return
 
-        partition = community_louvain.best_partition(
-            self.undirected_graph,
-            weight='weight',
-            resolution=1.0,
-            random_state=42
-        )
+        communities = list(lpa(self.undirected_graph, weight='weight'))
 
-        source_community = partition.get(self.source)
-        if source_community is not None:
-            self.community_nodes = {
-                node for node, comm in partition.items()
-                if comm == source_community
-            }
-            self.current_community = source_community
+        # 找到包含source的社区
+        source_community = None
+        for comm in communities:
+            if self.source in comm:
+                source_community = comm
+                break
+
+        if source_community:
+            self.community_nodes = set(source_community) - self.processed
