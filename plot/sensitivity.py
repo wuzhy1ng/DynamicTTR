@@ -22,7 +22,7 @@ def load_data(fn: str) -> Dict[Tuple, Dict]:
 
 def plot(data: Dict[Tuple, Dict]):
     metrics = ['Recall', 'Precision', 'Depth', 'TPS']
-    alphas = sorted(set(key[0] for key in data.keys()))
+    alphas = sorted(set(key[0] for key in data.keys()), reverse=True)
     epsilons = sorted(set(key[1] for key in data.keys()))
 
     # 创建子图

@@ -16,7 +16,7 @@ class DTTR:
     def __init__(
             self, source: List[str],
             alpha: float = 0.15,
-            epsilon: float = 1e-3,
+            epsilon: float = 0.001,
             is_in_usd: bool = True,
             is_reduce_swap: bool = True,
             is_log_value: bool = True,
@@ -91,11 +91,11 @@ class DTTR:
 
             # add restart edges
             if not self._node2outsum.get(v):
-                # for s in self.source:
-                #     self._witness_graph.add_edge(v, s, value=self.epsilon)
-                # self._node2outsum[v] = self.epsilon * len(self.source)
-                self._witness_graph.add_edge(v, v, value=self.epsilon)
-                self._node2outsum[v] = self.epsilon
+                for s in self.source:
+                    self._witness_graph.add_edge(v, s, value=self.epsilon)
+                self._node2outsum[v] = self.epsilon * len(self.source)
+                # self._witness_graph.add_edge(v, v, value=self.epsilon)
+                # self._node2outsum[v] = self.epsilon
 
             # update mass and local push
             nodes_push = self._update_mass(u, v, attr['value'])

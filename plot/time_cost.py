@@ -14,9 +14,12 @@ from algos.bfs import BFS
 from algos.dappr import DAPPR
 from algos.dttr import DTTR
 from algos.haricut import Haircut
+from algos.louvain import LOUVAIN
+from algos.lpa import LPA
 from algos.poison import Poison
 from algos.push_pop import PushPopAggregator
 from algos.tiles import TILES
+from algos.tpp import TPP
 from algos.ttr import TTRRedirect
 from dataset.dynamic import DynamicTransNetwork
 from settings import PROJECT_PATH
@@ -202,41 +205,42 @@ def eval_methods(
 ) -> Dict:
     results = dict()
     transaction_cnt = dataset.get_case_transaction_count(case_name)
-    results['DTTR'] = eval_tps_from_transaction_arrive(
-        dataset=dataset,
-        case_name=case_name,
-        model_cls=DTTR,
-        record_points=record_points,
-    )
-    print(','.join(['DTTR', *[
-        str(n) for n in results['DTTR']
-    ]]))
-
-    results['LazyFwd'] = eval_tps_from_edge_arrive(
-        dataset=dataset,
-        case_name=case_name,
-        model_cls=DAPPR,
-        record_points=record_points,
-        transaction_cnt=transaction_cnt,
-    )
-    print(','.join(['LazyFwd', *[
-        str(n) for n in results['LazyFwd']
-    ]]))
-
-    results['TILES'] = eval_tps_from_edge_arrive(
-        dataset=dataset,
-        case_name=case_name,
-        model_cls=TILES,
-        record_points=record_points,
-        transaction_cnt=transaction_cnt,
-    )
-    print(','.join(['TILES', *[
-        str(n) for n in results['TILES']
-    ]]))
+    # results['DTTR'] = eval_tps_from_transaction_arrive(
+    #     dataset=dataset,
+    #     case_name=case_name,
+    #     model_cls=DTTR,
+    #     record_points=record_points,
+    # )
+    # print(','.join(['DTTR', *[
+    #     str(n) for n in results['DTTR']
+    # ]]))
+    #
+    # results['LazyFwd'] = eval_tps_from_edge_arrive(
+    #     dataset=dataset,
+    #     case_name=case_name,
+    #     model_cls=DAPPR,
+    #     record_points=record_points,
+    #     transaction_cnt=transaction_cnt,
+    # )
+    # print(','.join(['LazyFwd', *[
+    #     str(n) for n in results['LazyFwd']
+    # ]]))
+    #
+    # results['TILES'] = eval_tps_from_edge_arrive(
+    #     dataset=dataset,
+    #     case_name=case_name,
+    #     model_cls=TILES,
+    #     record_points=record_points,
+    #     transaction_cnt=transaction_cnt,
+    # )
+    # print(','.join(['TILES', *[
+    #     str(n) for n in results['TILES']
+    # ]]))
 
     for model_cls in [
-        BFS, Poison, Haircut,
-        APPR, TTRRedirect
+        # BFS, Poison, Haircut,
+        # APPR, TTRRedirect,
+        TPP, LPA, LOUVAIN,
     ]:
         results[model_cls.__name__] = eval_tps_from_pushpop(
             dataset=dataset,
@@ -263,7 +267,7 @@ def plot(record_points: List[float], transaction_cnt: int):
     # plot the results
     linestyles = ['-', '--', '-.', ':']
     makers = ['o', 's', '^']
-    plt.figure(dpi=768)
+    plt.figure(dpi=768, figsize=(7.25, 6))
     for i, method in enumerate(method2tps):
         tpss = method2tps[method]
         plt.plot(
@@ -273,7 +277,12 @@ def plot(record_points: List[float], transaction_cnt: int):
         )
     plt.xscale('log')
     plt.yscale('log')
-    plt.legend(prop={'size': 14}, loc='lower right')
+    plt.legend(
+        prop={'size': 14},
+        loc='upper center',
+        bbox_to_anchor=(0.5, 1.5),
+        ncol=(len(method2tps) + 1) // 3,  # 横向排列图例
+    )
     plt.tick_params(labelsize=16)
     plt.xlabel('#Transaction', fontsize=16)
     plt.ylabel('TPS', fontsize=16)
