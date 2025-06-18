@@ -41,7 +41,7 @@ def plot(data: Dict[Tuple, Dict]):
 
         # 绘制热力图
         ax = axes[i]
-        im = ax.imshow(heatmap, aspect='auto')
+        im = ax.imshow(heatmap, aspect='auto', cmap='PuBu')
         ax.set_title(metric, fontsize=16)
         ax.set_xlabel(r'$\epsilon$', fontsize=16)
         ax.set_ylabel(r'$\alpha$', fontsize=16)
@@ -59,7 +59,7 @@ def plot(data: Dict[Tuple, Dict]):
                 ax.text(
                     epsilon_idx, alpha_idx, val,
                     ha='center', va='center',
-                    color='white' if value < mid_val else 'black',
+                    color='white' if value > mid_val else 'black',
                     fontsize=16,
                 )
 

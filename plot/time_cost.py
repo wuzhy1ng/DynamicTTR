@@ -264,31 +264,44 @@ def plot(record_points: List[float], transaction_cnt: int):
             nums = [float(n) for n in row[1:]]
             method2tps[row[0]] = nums
 
-    # plot the results
-    linestyles = ['-', '--', '-.', ':']
-    makers = ['o', 's', '^']
-    plt.figure(dpi=768, figsize=(7.25, 6))
-    for i, method in enumerate(method2tps):
-        tpss = method2tps[method]
-        plt.plot(
-            record_points, tpss, label=method,
-            linestyle=linestyles[i % len(linestyles)],
-            marker=makers[i % len(makers)],
-        )
-    plt.xscale('log')
-    plt.yscale('log')
-    plt.legend(
-        prop={'size': 14},
-        loc='upper center',
-        bbox_to_anchor=(0.5, 1.5),
-        ncol=(len(method2tps) + 1) // 3,  # 横向排列图例
+    # 定义子图布局
+    fig, axes = plt.subplots(
+        2, 6, figsize=(20, 5.5),
+        sharex=True, sharey=True
     )
-    plt.tick_params(labelsize=16)
-    plt.xlabel('#Transaction', fontsize=16)
-    plt.ylabel('TPS', fontsize=16)
+    axes = axes.flatten()  # 将子图数组展平
+    fig.delaxes(axes[-1])  # 删除多余的第12个子图
+
+    # 定义颜色
+    blue_methods = ['TILES', 'LazyFwd', 'Ours']
+
+    # 绘制每个方法的折线图
+    for i, (method, tpss) in enumerate(method2tps.items()):
+        if i >= 11:  # 确保只绘制11个图
+            break
+        ax = axes[i]
+        if method in blue_methods:
+            ax.plot(record_points, tpss, label=method, linewidth=5)
+        else:
+            ax.plot(record_points, tpss, label=method, color='gray', linewidth=2)
+        ax.set_title(method, fontsize=22)
+        # ax.set_ylim(1, 10**6)
+        ax.set_xscale('log')
+        ax.set_yscale('log')
+        ax.tick_params(labelsize=22)
+        ax.grid()
+
+    # 只给最左侧子图添加y轴标签
+    for i in [0, 6]:  # 第一列的行索引
+        axes[i].set_ylabel("TPS", fontsize=22)
+    # 只给最底部子图添加x轴标签
+    for k in range(6, 11):  # 第二行的列索引
+        axes[k].set_xlabel("#Transaction", fontsize=22)
+
+
+    # 调整布局
     plt.tight_layout()
-    plt.grid()
-    plt.show()
+    plt.savefig('time_cost.svg')
 
 
 if __name__ == '__main__':

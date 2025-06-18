@@ -11,9 +11,12 @@ from algos.appr import APPR
 from algos.dappr import DAPPR
 from algos.dttr import DTTR
 from algos.haricut import Haircut
+from algos.louvain import LOUVAIN
+from algos.lpa import LPA
 from algos.poison import Poison
 from algos.push_pop import PushPopAggregator
 from algos.tiles import TILES
+from algos.tpp import TPP
 from algos.ttr import TTRRedirect
 
 from utils.metrics import calc_depth, calc_recall, calc_size, calc_precision, calc_fpr
@@ -59,7 +62,7 @@ def eval_case_from_pushpop(
     ):
         attr['value'] = float(attr['value'])
         graph.add_edge(u, v, **attr)
-    source = sorted(list(sources))[0]
+    source = sorted(list(sources))[-1]
     aggregator = PushPopAggregator(
         source=source,
         model_cls=model_cls,
@@ -181,9 +184,9 @@ def eval_case_from_transaction_arrive(
         trans = nx.MultiDiGraph()
         trans.add_edges_from(trans2edges[txhash])
         model.transaction_arrive(trans)
+    time_used = time.time() - time_used
     vis = list(model.p.keys())
     witness_graph = graph.subgraph(vis)
-    time_used = time.time() - time_used
 
     # collect the metrics and return the result
     depth = calc_depth(witness_graph, sources, vis)
@@ -258,29 +261,25 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     dataset = DynamicTransNetwork(raw_path=args.raw_path)
-    # eval_method(
-    #     dataset=dataset,
-    #     model_cls=DTTR,
-    #     eval_fn=eval_case_from_transaction_arrive,
-    # )
-    # eval_method(
-    #     dataset=dataset,
-    #     model_cls=DAPPR,
-    #     eval_fn=eval_case_from_edge_arrive,
-    # )
+    eval_method(
+        dataset=dataset,
+        model_cls=DTTR,
+        eval_fn=eval_case_from_transaction_arrive,
+    )
     eval_method(
         dataset=dataset,
         model_cls=TILES,
         eval_fn=eval_case_from_edge_arrive,
     )
-    # for model_cls in [
-    #     BFS, Poison,
-    #     Haircut,
-    #     APPR,
-    #     TTRRedirect
-    # ]:
-    #     eval_method(
-    #         dataset=dataset,
-    #         model_cls=model_cls,
-    #         eval_fn=eval_case_from_pushpop
-    #     )
+    for model_cls in [
+        BFS, Poison,
+        Haircut,
+        APPR,
+        TTRRedirect,
+        LPA, LOUVAIN, TPP,
+    ]:
+        eval_method(
+            dataset=dataset,
+            model_cls=model_cls,
+            eval_fn=eval_case_from_pushpop
+        )

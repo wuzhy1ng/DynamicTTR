@@ -10,5 +10,24 @@ pip install -r requirements.txt
 ```
 
 # Dataset
-For the comparative experiment, please pre-download the `XBlockFlow` dataset.
+For the experiment, please pre-download the `EthereumHeist` dataset.
 See: https://xblock.pro/#/dataset/46
+
+# Run the code in experiments
+Comparative experiments:
+```shell
+python comp.py --raw_path=/path/to/your/dataset
+```
+
+Parameters Sensitivity Analysis:
+```shell
+python sens.py --raw_path=/path/to/your/dataset
+```
+
+Ablation Study:
+```shell
+python abl.py --raw_path=/path/to/your/dataset
+```
+
+# Experiments in the wild
+Please refer to the `wild` folder for the experiments in the wild.
